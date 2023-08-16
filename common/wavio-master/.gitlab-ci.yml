@@ -1,0 +1,28 @@
+
+testpy27:
+  image: python:2.7
+  script:
+  - apt-get update -qy
+  - pip install .
+  - python tests/test_wavio.py
+
+testpy36:
+  image: python:3.6
+  script:
+  - apt-get update -qy
+  - pip install .
+  - python tests/test_wavio.py
+
+testpy37:
+  image: python:3.7
+  script:
+  - apt-get update -qy
+  - pip install .
+  - python tests/test_wavio.py
+
+testpy38:
+  image: python:3.8
+  script:
+  - apt-get update -qy
+  - pip install .
+  - python tests/test_wavio.py

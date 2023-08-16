@@ -1,0 +1,199 @@
+
+import numpy as np
+
+
+def tspofs_ga(pts=None, dmat=None, numepochs=100, popsize=100, showprogress=False):
+    """
+    Genetic algorithm (GA) solution to the open route, fixed start, Traveling
+    Salesman Problem (TSP).
+
+    Usage:
+        routebest, routedist = tspofs_ga(pts=ptpos, dmat=dmat, numepochs=100,
+                                        popsize=100)
+
+    Arguments:
+        pts: An Nx2 Numpy array of the destination locations. Default is None.
+        At least one of 'pts' or 'dmat' must be provided. If not None, all
+        routes are assumed to start from the first point, pts[0,:], and this
+        point is not allowed to be revisited in a route.
+
+        dmat: An NxN Numpy array of the inter-destination distances. Default is
+        None. At least one of 'pts' or 'dmat' must be provided. If 'dmat' is
+        None, then it is calculated as a symmetric matrix from 'pts'. To use
+        non-symmetric distances, 'dmat' must be provided by the calling routine.
+        The distance from the fixed starting point to all other points is given
+        by the first row and column of 'dmat'.
+
+        numepochs: Number of epochs to run the GA. An integer. Default is 100.
+
+        popsize: Route population size. An integer. Default is 100.
+
+    Author:
+        Phil David, Army Research Laboratory, 2018-02-02.
+
+    Description:
+        This function attempts to find an optimal solution to a variation of the
+        TSP by using a genetic algorithm to search for the shortest route from a
+        fixed starting point (the first point) that passes through all other
+        destinations exactly once without returning to the starting point.
+
+    Notes:
+        This code is based on Joseph Kirk's MATLAB code:
+            https://www.mathworks.com/matlabcentral/fileexchange/
+                  13680-traveling-salesman-problem-genetic-algorithm
+
+        The sequence [0,1,2,3,...,N] is always added to the initial population
+        of routes to explore. So, if the input data is already nearly sorted
+        into a good route, then this sequence should speed up the process of
+        finding the optimal route.
+    """
+
+    if pts is None and dmat is None:
+        raise ValueError('At least one of arguments XY and DMAT must be given')
+
+    if dmat is None:
+        # Get the distance matrix.
+        numdest = pts.shape[0]         # number of destinatins (including start)
+        dmat = np.zeros((numdest, numdest))
+        for r in range(numdest):
+            for c in range(r+1, numdest):
+                d = np.sqrt(np.sum((pts[r,:]-pts[c,:])**2))
+                dmat[r,c] = dmat[c,r] = d
+    else:
+        numdest = dmat.shape[0]
+
+    # Handle outlier cases.
+    if numdest == 0:
+        raise ValueError('Must be at least one destination in route')
+    elif numdest == 1:
+        return np.array([0], dtype=int), 0.0
+    elif numdest == 2:
+        return np.array([0,1], dtype=int), dmat[0,1]
+
+    # Initialize the population of routes. Destination 0 is not included in any
+    # route since it is the start of all routes.
+    numdest -= 1                    # starting destination is not part of routes
+    popsize = int(4*np.ceil(popsize/4))
+    pop = np.zeros((popsize, numdest), dtype=int)
+    pop[0,:] = np.arange(1,numdest+1)               # include input pts as given
+    for k in range(1,popsize):
+        pop[k,:] = np.random.permutation(numdest) + 1
+
+    numreplace = int(np.round(0.4*popsize)) # num. members to replace by best on each epoch
+    distbest = np.Inf
+    routebest = np.zeros(numdest, dtype=int)
+    dists = np.zeros(popsize)
+    distshistory = np.zeros(numepochs)
+    poptmp = np.zeros((4,numdest), dtype=int)
+    popnew = np.zeros((popsize, numdest), dtype=int)
+    tmp = np.zeros(numdest, dtype=int)
+
+    # Evolve the population.
+    for enum in range(numepochs):
+
+        if showprogress:
+            pct = 100*(enum+1)/numepochs
+            if pct % 10 == 0:
+                print('{:.0f}%'.format(pct))
+
+        # Get the distsance of each population member.
+        for p in range(popsize):
+            cur = pop[p, 0]
+            d = dmat[0, cur]      # distsance from start to 1st real destination
+            for k in range(1, numdest):
+                prev = cur
+                cur = pop[p, k]
+                d += dmat[prev, cur]
+            dists[p] = d
+
+        # Find the best (shortest) route in the population.
+        idxmin = np.argmin(dists)
+        dstmin = dists[idxmin]
+        if dstmin < distbest:
+            distbest = dstmin
+            routebest[:] = pop[idxmin,:]
+            # print('D =', distbest, 'R =', routebest)
+
+        if True:
+            # Replace a few routes with the best route.
+            randomorder = np.random.permutation(popsize)
+            pop[randomorder[0:numreplace],:] = routebest
+
+        # Apply genetic algorithm operators to random subpopulations of size 4.
+        randomorder = np.random.permutation(popsize)
+        for step in range(0, popsize, 4):
+            idxcur4 = randomorder[np.random.permutation(4) + step]
+            subpop = pop[idxcur4,:]               # subpopulation of size 4
+            idxbest = np.argmin(dists[idxcur4])   # idx of best member in subpopulation
+            membest = subpop[idxbest,:]           # best member in subpopulation
+
+            # Mutate the best member of subpopulation to get three new routes.
+            mutatepts = np.random.choice(numdest, 2, replace=False)
+            m1 = np.min(mutatepts)                      # random mutation points
+            m2 = np.max(mutatepts)
+            poptmp[0,:] = membest                       # no change
+            poptmp[1,:] = membest
+            poptmp[1,m1:m2+1] = membest[m1:m2+1][::-1]  # reverse a subroute
+            poptmp[2,:] = membest
+            poptmp[2,[m1,m2]] = membest[[m2,m1]]        # swap two destinations
+            poptmp[3,:] = membest
+            # poptmp[3,m1:m2+1] = np.roll(membest[m1:m2+1],1)   # circular shift
+            poptmp[3,m1] = membest[m2]                  # circular shift
+            poptmp[3,m1+1:m2+1] = membest[m1:m2]
+
+            popnew[step:step+4,:] = poptmp              # save the mutations
+
+        pop[:,:] = popnew                               # copy popnew into pop
+
+    return np.hstack((0,routebest)), distbest  # insert start at front of route
+
+
+
+if __name__ == '__main__':
+
+    import time
+
+    # np.random.seed(1)
+    if False:
+        ptpos = np.array([
+                [50,    50], [47,    77], [ 5,    35], [20,    14],
+                [24,    40], [45,    59], [47,    74], [25,    93],
+                [ 8,    72], [47,    61], [19,    25], [85,   102],
+                [36,    74], [93,    94], [14,     9], [22,    93],
+                [15,    47], [101,   58], [74,    37], [74,    88]])
+        numpts = ptpos.shape[0]
+    else:
+        # Create some random points.
+        numpts = 50
+        ptpos = np.random.randint(0, high=100, size=(numpts,2))
+        ptpos[0,:] = [50, 50]          # starting point
+
+    # Get the distance matrix.
+    dmat = np.zeros((numpts,numpts))
+    for r in range(numpts):
+        for c in range(r+1, numpts):
+            d = np.sqrt(np.sum((ptpos[r,:]-ptpos[c,:])**2))
+            dmat[r,c] = dmat[c,r] = d
+
+    # Plan the shortest route that visits all points.
+    start_time = time.time()
+    route, dist = tspofs_ga(pts=ptpos, dmat=dmat, numepochs=300, popsize=100,
+                            showprogress=True)
+    end_time = time.time()
+    print('Elapsed time = {:.3f} sec.'.format(end_time-start_time))
+    print('Route distance = {:.2f}'.format(dist))
+    # print('Route =\n', route)
+    # print('Points =\n', np.column_stack((np.array(range(numpts)), ptpos)))
+
+    # Display the best route. The start node is green and the end node is red.
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+    f = plt.figure(num='TSP Route: Dist = {:.1f}'.format(dist))
+    x = ptpos[route,0]
+    y = ptpos[route,1]
+    plt.gca().add_line(Line2D(x, y, linewidth=1, linestyle='-', color='k'))
+    plt.plot(x, y, marker='.', markersize=10, markerfacecolor='b',
+             markeredgecolor='b', linestyle='none')
+    plt.plot(x[0:1], y[0:1], marker='.', markerfacecolor='g', markeredgecolor='g', markersize=12)
+    plt.plot(x[-1:], y[-1:], marker='.', markerfacecolor='r', markeredgecolor='r', markersize=12)
+    plt.show()
