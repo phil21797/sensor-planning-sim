@@ -68,9 +68,6 @@ base_tags = {'person', 'clutter', 'sky', 'ground', 'plant', 'airborne',
 label2id = {'unknown':0, 'person':1, 'clutter':2, 'animal':3, 'sign':4,
             'vehicle':5, 'airborne':6, 'barrier':7, 'plant':8, 'building':9,
             'gndfeat':10, 'road':11, 'water':12, 'ground':13, 'sky':14}
-# label2id = {'unknown':0, 'person':1, 'clutter':2, 'animal':3, 'sign':4,
-            # 'vehicle':5, 'barrier':6, 'plant':7, 'building':8, 'gndfeat':9,
-            # 'road':10, 'airborne':11, 'water':12, 'ground':13, 'sky':14}
 
 # Map SimWorld semantic labels to MIT's SceneParse150 semantic labels.
 simworld2mit150 = {'unknown':'arcade', 'person':'person', 'clutter':'plaything',
@@ -131,11 +128,18 @@ audio_sample_rate = 16000  # resample all audio files at this rate (Hz)
 audio_record_dist = 3      # distance (meters) from source at which sounds are
                            #    assumed to be recorded
 
-# How should audio signals be normalized relative to the maximum, maxaudio?
-# The default is 0.5 when not specified.
-maxaudio = float(2**14)
+# How should audio signals be normalized relative to the maximum, `audio_max`?
+# The default for any object is 0.5 when not specified. `audio_max` is the
+# initial maximum absolute amplitude (volume) of any audio signal assigned to an
+# object prior to that object's sound being measured by a microphone in a
+# simulated environment. This value must be in the range [0,1]. An object's
+# measured audio signal may be greater than this value if the object is closer
+# than `audio_record_dist` to a microphone. The maximum absolute measured
+# audio signal is limited to `audio_max_scale` x `audio_max`.
+audio_max = float(2**14)
+audio_max_scale = 2.0
 audio_normalize = {'bird':0.2, 'car':0.7, 'cat':0.3, 'cow':0.4, 'dog':0.4,
-                   'drone':0.3, 'motorcycle':0.75, 'person':0.5, 'robot':0.3,
+                   'drone':0.3, 'motorcycle':0.8, 'person':0.5, 'robot':0.3,
                    'sheep':0.4, 'traffic':0.6, 'truck':1.0}
 
 class WorldObj:
@@ -143,17 +147,21 @@ class WorldObj:
     Class for individual objects (person, clutter, building, signs, etc.) in
     the world.
     """
-    id_counter = 0        # used to assign a unique ID to each object.
-    textures = []         # list of textures, each is a dict
-    numtextures = 0       # number of texture images
-    sounds = []           # list of sounds, each is a dict
-    numsounds = 0         # number of sounds
-    max_audio = 1.0       # average maximum audio signal magnitude
-    tag2txtid = {}        # dict that maps tags to sets of texture IDs
-    tag2soundid = {}      # dict that maps tags to sets of sound IDs
-    lightcoef = (1,1,0)   # lighting coefficients: (ambient, diffuse, specular)
-    max_audio = maxaudio  # used to normalize audio signals
-    verbosity = 0         # level of normal output: [0,1,2,3]
+    id_counter = 0         # used to assign a unique ID to each object.
+    textures = []          # list of textures, each is a dict
+    numtextures = 0        # number of texture images
+    sounds = []            # list of sounds, each is a dict
+    numsounds = 0          # number of sounds
+    tag2txtid = {}         # dict that maps tags to sets of texture IDs
+    tag2soundid = {}       # dict that maps tags to sets of sound IDs
+    lightcoef = (1,1,0)    # lighting coefficients: (ambient, diffuse, specular)
+    audio_max = audio_max  # used to normalize audio signals
+    audio_max_scale = audio_max_scale  # scale factor of max measured audio
+    verbosity = 0          # level of normal output: [0,1,2,3]
+
+    # The measure audio volume is allowed to be greater than `audio_max` when
+    # the object (sound source) is very close to the microphone.
+    audio_max_measured = audio_max_scale*audio_max
 
 
     def __init__(self, renderer, worldviews, objtags=None, pos=None, rot=(0,0,0),
@@ -828,11 +836,11 @@ class WorldObj:
                 # Normalize the signal.
                 soundtags = tags & set(audio_normalize.keys())
                 if len(soundtags) > 0:
-                    f = audio_normalize[list(soundtags)[0]]
+                    s = audio_normalize[list(soundtags)[0]]
                 else:
-                    f = 0.5
+                    s = 0.5
                 mag = max(abs(signal.min()), abs(signal.max()))
-                signal = f*WorldObj.max_audio*(signal/mag)
+                signal = s*WorldObj.audio_max*(signal/mag)
 
                 # Resample the signal to a fixed sample rate.
                 xp = np.arange(0, nsamples)    # coordinates of original samples
@@ -3669,7 +3677,7 @@ class SimWorld:
 
         if verbose:
             print(f'  micpos=({micpos[0]:.1f},{micpos[1]:.1f}), rec_samples={rec_samples}')
-            print(f'    {"Obj":15s} {"Sound":20s} {"ObjPos":17s} {"Dist":7s}'
+            print(f'    {"Obj":15s} {"Sound":20s} {"ObjPos":16s} {"Dist":7s}'
                   f' {"DScale":6s} {"Vmax":>7s}')
 
         for obj in self.noise_makers:
@@ -3688,7 +3696,11 @@ class SimWorld:
             if bldgcnt > 2:
                 continue
 
-            scale = min(2, audio_record_dist/d)    # scale on amplitude of sound
+            # Scale factor for the audio signal's amplitude based on the
+            # distance of the object relative to that which the original
+            # audio was recorded.
+            scale = min(WorldObj.audio_max_scale, audio_record_dist/d)
+
             sound = obj.sound
             num_src_samples = sound['nsamples']
 
@@ -3714,7 +3726,7 @@ class SimWorld:
                 vmax = scale*max(abs(src_signal.min()), abs(src_signal.max()))
                 print(f'    {"_".join(sorted(list(obj.keytags), reverse=True)):15s}'
                       f' {"_".join(t):19s} '
-                      f' ({obj.xctr:<6.1f},{obj.yctr:>6.1f}) {d:>7.1f} '
+                      f' ({obj.xctr:<6.1f} {obj.yctr:>6.1f}) {d:>7.1f} '
                       f' {scale:>8.1e} {vmax:>7.1f}')
                 if map2d:
                     gh = map2d.line(micpos, [obj.xctr, obj.yctr])

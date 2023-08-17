@@ -20,9 +20,16 @@ This project supports the Army Research Laboratory's Internet of Battlefield Thi
 
 ## Running the code
 
+* See the sim_world [README](/README.md) file for setup information.
+
 * Add "sim_world" to your PYTHONPATH environment variable.
+
 * Edit multiagent.py to change various program parameters.
-* Run it: python multiagent.py
+
+* Run it:
+~~~bash
+$ python multiagent.py
+~~~
  
 ## Author
 

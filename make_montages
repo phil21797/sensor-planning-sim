@@ -1,11 +1,19 @@
 #!/bin/bash
+
 # 
+# Combine images output from the multiagent.py simulation for the purpose of 
+# making a video.
+#
 # Usage: make_montages <input folder> <output folder>
 #
-# Create 1920x1080 montage images from images agents_*.png and map_*.png from the folder $1 and save to 
-# frame_*.png in the folder montages.
+# Description:
+#    Create 1920x1080 montage images from source images agents_*.png and map_*.png 
+#    in the folder $1 and save these to frame_*.png in the folder montages.
 #
-# Video creation parameters: MP4 (h.264), HD 1080p 30 fps, High quality.
+#    Video creation parameters: MP4 (h.264), HD 1080p 30 fps, High quality.
+#
+
+set -e     # exit on error
 
 echo "Creating montages from images in \"$1\", saving montages in \"$2\"..."
 
