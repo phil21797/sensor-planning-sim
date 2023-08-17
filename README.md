@@ -1,5 +1,5 @@
 
-# Visual Search Project
+# Sensor Planning Simulation Environment
 
  <p align="center">  
  <img src="README.images/banner.png">
@@ -7,29 +7,25 @@
  
 ## Description
 
-**The goal of this project is to develop methods that enable autonomous agents to use pan-tilt-zoom (PTZ) cameras to efficiently search large outdoor environments for objects of interest, taking into account mission objectives and constraints.**
+**The goal of this project is to provide a simulation environment to support the research and development of multi-agent, multi-sensor, surveillance algorithms in large, outdoor environments.**
 
-Given the scene in the left image below, and a mission to locate snipers, how does an agent quickly decide to zoom in on the distant building in order to locate the man with the gun?
+This project supports the Army Research Laboratory's Internet of Battlefield Things (IoBT) program. 
 
 <table>
 <tr>
-<td><img src="README.images/ground_urban_5_color.jpg"><br>
-<p align="center"> Wide-angle view of an urban environemnt. </td></p>
-<td><img src="README.images/ground_urban_5_zoom.jpg"><br>
-<p align="center"> Zoomed-in view of distant building in scene to left. </td></p>
+<td><img src="README.images/multiagent_display.jpg"><br>
+<p align="center"> Display of one instant in a multiagent simulation.  Left: A 2D "map" representation of the environment.  White cones represent PTZ camera fields-of-view. Blue dashed lines represent possible acoustic detections. Right: Camera images and overlayed microphone sensor data as observed by the six agents shown in the 2D map. </td></p>
 </tr>
 </table><br>
 
-## Subprojects
-- [Baseline search](./baseline_search/README.md) algorithm
-- [Common code](./common/README.md) for all visual search work
-- [YOLO object detector](./obj_detector/README.md) implemented by DeNA Co.
-- [Outdoor environment simulator](./sim_world/README.md) for developing and testing algorithms
-
  
-## Authors
+## Author
 
-Phil David, U.S. Army Research Laboratory, 2020-04-07.
+Phil David
+
+&nbsp;&nbsp;&nbsp;&nbsp; U.S. Army DEVCOM, Army Research Laboratory, 2020-04-07.
+
+&nbsp;&nbsp;&nbsp;&nbsp; Parsons Corp., 2023-06-01.
 
 
 

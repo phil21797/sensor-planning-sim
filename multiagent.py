@@ -1,8 +1,8 @@
 """
-Multiple agents view a common environment.
+Multiple agents operating in a common environment.
 
 Author:
-    Phil David, US Army Research Laboratory, December 5, 2020.
+    Phil David, Parsons, May 1, 2023.
 
 """
 
@@ -11,11 +11,14 @@ from simworld import *
 from camera import *
 from microphone import *
 from agent import *
+from datetime import datetime
+import os
 
 audiorows = 0.5          # fraction of image rows (in [0,1]) over which to plot audio signals
 
 if __name__ == '__main__':
     # Program parameters.
+    randseed = 8370646        # random seed or None
     numagents = 6             # number of agents to place in the environment
     imsize = (1280,720)       # all rendered images are this size
     dtime = 0.1               # time (seconds) between agent updates
@@ -27,7 +30,22 @@ if __name__ == '__main__':
     prob_mic_onoff = 0.0      # probability of switching a microphone on/off on any step
     prob_cam_reset = 0.1      # probability of resetting a camera pan direction on any step
     initsensors = True        # need to initialize sensors?
+    outfolder = './outputs'   # base name of output folder, or None
     verbose = True            # display a lot of output?
+
+    if outfolder != None:
+        # Create a folder to save output in.
+        dt = datetime.now().strftime("%Y%m%d%H%M%S")
+        outfolder = outfolder + '_' + dt
+        if os.path.exists(outfolder):
+            print(f'Output folder "{outfolder}" already exists')
+            exit(1)
+        else:
+            try:
+                os.mkdir(outfolder)
+                print(f'Created output folder "{outfolder}"')
+            except:
+                raise Exception(f'Unable to create output folder "{outfolder}"')
 
     # Create a random outdoor environmeent.
     sim = SimWorld(imsize=imsize, timeofday=[700,1800], env_radius=200,
@@ -38,7 +56,7 @@ if __name__ == '__main__':
                    lookouts=True, probwindowoccupied=0.25,
                    p_over_building={'person':0.5, 'clutter':0.1, 'animal':1.0},
                    p_over_road={'person':0.1, 'clutter':0.05, 'animal':0.2},
-                   textures='textures', rand_seed=8370646)
+                   textures='textures', rand_seed=randseed)
 
     # Create and display a 2D map of the environment.
     mymap = Map2D(maps=sim.map3d, size=8, label_colors=sim.label_colors)
@@ -96,7 +114,7 @@ if __name__ == '__main__':
             print(f'\n[[ Frame {fnum}, Time {sim.time:.2f} sec. ]]\n')
             if sim.time > 46:
                 exit(0)
-            f.fig.suptitle(f'[[ Time: {sim.time:.2f} sec. ]]', fontsize=10)
+            f.fig.suptitle(f'■■ Time: {sim.time:.2f} sec. ■■', fontsize=10)
 
             # Update the sensor configuartion of all agents.
             for k in range(numagents):
@@ -138,15 +156,15 @@ if __name__ == '__main__':
                     s = np.ceil(len(sig)/ncols).astype(int)  # resample interval
                     sig2 = sig[0:-1:s]
                     x = np.arange(len(sig2))
-                    y = nrows/2 + audiorows*nrows*sig2/WorldObj.max_audio
+                    y = nrows/2 + audiorows*nrows*sig2/WorldObj.audio_max_measured
                     f.set(axisnum=k)
                     plt.plot(x, y, 'r', linewidth=0.5)
                     plt.pause(0.1)
 
-            if True:
+            if outfolder is not None:
                 # Save figures to files.
-                f.savefig('tmp/originals/agents_{:07d}.png'.format(fnum))
-                mymap.mfig.savefig('tmp/originals/map_{:07d}.png'.format(fnum))
+                f.savefig(f'{outfolder}/agents_{fnum:07d}.png')
+                mymap.mfig.savefig(f'{outfolder}/map_{fnum:07d}.png')
 
             sim.inc_time(dtime)
 

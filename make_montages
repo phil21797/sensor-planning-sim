@@ -1,0 +1,21 @@
+#!/bin/bash
+# 
+# Usage: make_montages <input folder> <output folder>
+#
+# Create 1920x1080 montage images from images agents_*.png and map_*.png from the folder $1 and save to 
+# frame_*.png in the folder montages.
+#
+# Video creation parameters: MP4 (h.264), HD 1080p 30 fps, High quality.
+
+echo "Creating montages from images in \"$1\", saving montages in \"$2\"..."
+
+for value in {0000001..1000000}
+do
+    echo "Image" $value...
+    convert "$1"/agents_$value.png -crop 960x1080+185+0 agents_cropped.png
+    convert agents_cropped.png -gravity center -background  "rgb(237,225,213)" -extent 960x1080 agents_extend.png
+    convert "$1"/map_$value.png -gravity center -background  "rgb(237,225,213)"  -extent 960x1080  map_extend.png
+    montage map_extend.png agents_extend.png -tile 2x1 -geometry 960x1080+0+0 "$2"/frame_$value.png
+done
+
+echo Done

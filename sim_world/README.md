@@ -7,7 +7,7 @@
  
 ## Description
     
-The random 3D outdoor environment simulator is designed to provide near photo-realistic imagery (see screenshots below) for training algorithms that rely on visual perception (computer vision) algorithms. Thus, almost all objects in the simulation are texture-mapped with real photos of those objects and are modeled in a way that preserves the photo-realism of the rendered scenes. High-definition semantic labels and depth imagery is also available. The randomness of the environment provides an unlimited number of environments to train or test in. This is essential for reinforcement learning algorithms. However, if desired, random environment generation can be turned off (via the *rand_seed* and other parameters) and the same environment can be used for all experiments . 
+The random 3D outdoor environment simulator is designed to provide near photo-realistic imagery (see screenshots below) for training algorithms that rely on visual perception (computer vision) algorithms. Thus, almost all objects in the simulation are texture-mapped with real photos of those objects and are modeled in a way that preserves the photo-realism of the rendered scenes. High-definition semantic labels and depth imagery is also available. The randomness of the environment provides an unlimited number of environments to train or test in. This is essential for reinforcement learning algorithms. However, if desired, random environment generation can be turned off (via the *rand_seed* and other parameters) and the same environment can be used for all experiments. 
 
 The simulator creates environments using a combination of 3D and 2D objects. Objects that must be stationary to produce convincing renderings of a scene, such as buildings, street signs, fences, and free-standing walls, are inserted into environemnts as 3D objects. All other objects, such as people and plants, whose orientations are less important, are inserted as 2D planar surfaces. To eliminate foreshortening of these 2D planar objects, they are always rotated about their vertical axes to face the camera. 
 
@@ -17,13 +17,21 @@ Most objects in the environment are represented with just two images, a color im
 - The appearances of buildings change with viewpoint, but they have the same facades on all four sides.
 - The ground is always flat. 
 - All roads (paved and unpaved) are straight and parallel to the X or Y axis.
-- There is no physical feedback to constrain robot motion. 
+- There is no physical feedback to constrain agent motion. 
 
 Most of these limitations can be eliminated, if needed.
 
 Currently, people are expected to be the main "objects of interest." Therefore, compared to other objects, there is a greater variety of ways to insert people into environments: people may be placed on the ground, on top of buildings, or inside of buildings looking out of windows.
 
 All rendering of environments is performed using the Visualization Toolkit (VTK).  VTK is open source software for manipulating and displaying scientific data.  See https://vtk.org for more details. The complexity of environments is limited only by computational resources and processing time constraints.
+
+### Audio
+
+In June 2023, the simulator was enhanced to include simulation of sounds produced by certain objects (e.g., people, cars, motorcycles, and some animals). Agents (see below) may be outfitted with a microphone that can be used to sample these sounds. All audio signals produced by the simulation are scaled versions of real audio recordings of these objects. The amplitude of a sound is scaled by the distance between the source and microphone, relative to the distance at which the original recording was made. A given microphone produces an audio signal that is the sum of scaled audio of all objects within a fixed range and which are not obscured by buildings. 
+
+### Mobile Agents
+
+Any number of stationary or mobile agents may be inserted into the environment. Each agent may sense its surroundings using a pan-tilt-zoom (PTZ) camera and/or a microphone.
 
 ### Sample images
 
@@ -68,7 +76,6 @@ Corresponding color image (left), semantic labels (center), and depth (right) fo
 # <a name="texture-images"></a>
 
 Objects in the simulator are represented with two images: a color image and a corresponding pixel-wise, semantically labeled image.  In order to produce photo-realistic renderings of the environment, color images should be high-resolution photographs of the objects. Properties of these objects (e.g., real-world size, location constraints, etc.) are embedded in the file names. See this [README](./textures/README.md) file for more details.
-
 
 ## Prerequisites
 
@@ -150,6 +157,10 @@ This project uses the YOLO v3 object detector implemented (in PyTorch) by DeNA (
 
 Phil David, U.S. Army Research Laboratory, 2020-04-07
 
+
+## Change History
+
+Phil David, Parsons Corp., 2020-04-07: Added audio simulation of objects and microphone sensors.
 
 
 
