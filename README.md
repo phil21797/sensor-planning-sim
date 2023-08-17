@@ -20,7 +20,7 @@ This project supports the Army Research Laboratory's Internet of Battlefield Thi
 
 ## Running the code
 
-* See the sim_world [README](/README.md) file for setup information.
+* See the sim_world [README](sim_world/README.md) file for setup information.
 
 * Add "sim_world" to your PYTHONPATH environment variable.
 
