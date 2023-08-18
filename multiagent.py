@@ -114,7 +114,7 @@ if __name__ == '__main__':
             print(f'\n[[ Frame {fnum}, Time {sim.time:.2f} sec. ]]\n')
             if sim.time > 46:
                 exit(0)
-            f.fig.suptitle(f'■■ Time: {sim.time:.2f} sec. ■■', fontsize=10)
+            f.fig.suptitle(f'⟦ Time: {sim.time:.2f} sec. ⟧', fontsize=10)
 
             # Update the sensor configuartion of all agents.
             for k in range(numagents):
