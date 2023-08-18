@@ -3552,10 +3552,10 @@ class SimWorld:
                     sid = np.random.choice(list(WorldObj.tag2soundid[t]))
                     sound = WorldObj.sounds[sid].copy()
                     WorldObj.sounds[sid]['numoccur'] += 1
-                    dvol = 1 + 0.2*(2*np.random.rand() - 1)   # perturb volume
-                    signal = dvol*sound['signal']             # amplitude scale
-                    tscale = 2*np.random.rand() + 0.5         # time scale
-                    xp = np.arange(0, sound['nsamples'])      # original sample points
+                    dvol = 1 - 0.25*np.random.rand()        # perturb volume
+                    signal = dvol*sound['signal']           # amplitude scale
+                    tscale = 2*np.random.rand() + 0.5       # time scale
+                    xp = np.arange(0, sound['nsamples'])    # original sample points
                     nsamples_new = int(np.ceil(tscale*sound['nsamples']))
                     x = np.linspace(0, sound['nsamples']-1, num=nsamples_new)
                     sound['signal'] = np.interp(x, xp, signal)
