@@ -184,6 +184,8 @@ class PTZCamera:
         self.rot = Rot3d(angles=orient)       # pan/tilt device's 3D orientation
         self.orient = orient                     # save for making camera copies
 
+        self.power = "on"
+
 
     def identical(self, cam):
         """
@@ -513,6 +515,16 @@ class PTZCamera:
             raise ValueError('One of arguments "hfov" or "vfov" must be provided')
 
 
+    def toggle_power(self):
+        """
+        Toggle the camera power.
+        """
+        if self.power == "on":
+            self.power = "off"
+        else:
+            self.power = "on"
+
+
     def whathvf(self, zoom=None, hfov=None, vfov=None, foclen=None):
         """
         Get the camera horizonatal FOV, vertical FOV and focal length for a
@@ -734,6 +746,12 @@ class PTZCamera:
             zerodir of the object that the camera is mounted on, all determine
             the images generated.
         """
+        if self.power == "off":
+            imgs = {}
+            for imname in imlist:
+                imgs[imname] = np.zeros(self.nrows, self.ncols, 3)
+            return imgs
+
         # Get the position and focus point of the camera in 3D world coordinates.
         pos, fp = self.get_pos_fp()
 
