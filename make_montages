@@ -20,10 +20,10 @@ echo "Creating montages from images in \"$1\", saving montages in \"$2\"..."
 for value in {0000001..1000000}
 do
     echo "Image" $value...
-    convert "$1"/agents_$value.png -crop 960x1080+185+0 agents_cropped.png
-    convert agents_cropped.png -gravity center -background  "rgb(237,225,213)" -extent 960x1080 agents_extend.png
-    convert "$1"/map_$value.png -gravity center -background  "rgb(237,225,213)"  -extent 960x1080  map_extend.png
-    montage map_extend.png agents_extend.png -tile 2x1 -geometry 960x1080+0+0 "$2"/frame_$value.png
+    convert "$1"/agents_$value.png -crop 960x1080+185+0 tmp_agents_crop.png
+    convert tmp_agents_crop.png -gravity center -background  "rgb(237,225,213)" -extent 960x1080 tmp_agents_ext.png
+    convert "$1"/map_$value.png -gravity center -background  "rgb(237,225,213)"  -extent 960x1080  tmp_map_ext.png
+    montage tmp_map_ext.png tmp_agents_ext.png -tile 2x1 -geometry 960x1080+0+0 "$2"/frame_$value.png
 done
 
 echo Done

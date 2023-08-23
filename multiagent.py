@@ -12,26 +12,46 @@ from camera import *
 from microphone import *
 from agent import *
 from datetime import datetime
+from audio_io import *
 import os
 
-audiorows = 0.5          # fraction of image rows (in [0,1]) over which to plot audio signals
+audiorows = 0.5          # fraction of image rows (in [0,1]) over which to
+                         # overlay audio signals
+
+
+def overlay_audio(sig, f, axnum, imsize):
+    """
+    Overlay an audio signal on top of an image.
+    """
+    ncols = imsize[0]
+    nrows = imsize[1]
+    s = np.ceil(len(sig)/ncols).astype(int)   # resample to fit across image
+    sig2 = sig[0:-1:s]
+    x = np.arange(len(sig2))
+    y = nrows/2 + audiorows*nrows*sig2/WorldObj.audio_max_measured
+    f.set(axisnum=axnum)
+    plt.plot(x, y, 'r', linewidth=0.5)
+    plt.pause(0.1)
+
 
 if __name__ == '__main__':
+
     # Program parameters.
     randseed = 8370646        # random seed or None
     numagents = 6             # number of agents to place in the environment
-    imsize = (1280,720)       # all rendered images are this size
+    imsize = (1280,720)       # size (cols,rows) of all rendered images
     dtime = 0.1               # time (seconds) between agent updates
-    panstep = [0]*numagents   # step size depends on size of camera FOV
-    fnum = 0                  # frame number of saved images
-    prob_have_camera = 1.0    # probability that an agent has a camera
-    prob_have_mic = 1.0       # probability that an agent has a microphone
-    prob_cam_onoff = 0.0      # probability of switching a camera on/off on any step
-    prob_mic_onoff = 0.0      # probability of switching a microphone on/off on any step
-    prob_cam_reset = 0.1      # probability of resetting a camera pan direction on any step
-    initsensors = True        # need to initialize sensors?
-    outfolder = './outputs'   # base name of output folder, or None
+    playaudio = False         # play recorded audio from agents?
+    prob_have_cam = 0.5       # probability that an agent has a camera
+    prob_have_mic = 0.8       # probability that an agent has a microphone
+    prob_cam_onoff = 0.5      # probability of switching a camera on/off on any step
+    prob_mic_onoff = 0.5      # probability of switching a microphone on/off on any step
+    prob_cam_reset = 0.1      # probability of resetting a camera pan & zoom on any step
+    outfolder = './outputs'   # name of output folder, or None
     verbose = True            # display a lot of output?
+
+    fnum = 0                  # frame number of saved images
+    blackimage = np.zeros(list(imsize[::-1])+[3])
 
     if outfolder != None:
         # Create a folder to save output in.
@@ -65,26 +85,30 @@ if __name__ == '__main__':
     # agent will have a least one of these sensors.
     print('Creating {:d} agents...'.format(numagents))
     agent = [[]]*numagents
-    for k in range(numagents):
+    panstep = [0]*numagents         # camera pan step sizes
+    for anum in range(numagents):
         camera = microphone = None
 
-        if np.random.rand() <= prob_have_camera:
+        if np.random.rand() <= prob_have_cam:
+            z = np.random.rand()
             camera = PTZCamera(imsize=imsize, rnghfov=(3,54),
-                              rngpan=(-np.Inf,np.Inf), rngtilt=(-45,60),
-                              pos=(0,0,1), pan=0, tilt=0, zoom=0)
+                               rngpan=(-np.Inf,np.Inf), rngtilt=(-45,60),
+                               pos=(0,0,1), pan=0, tilt=0, zoom=z)
+            panstep[anum] = np.deg2rad((1 if np.random.rand() > 0.5 else -1)
+                                       *(5-3*camera.zoom))
 
         if camera is None or np.random.rand() <= prob_have_mic:
             microphone = Microphone(pos=(0,0,1))
 
-        agent[k] = Agent(env=sim, cam=camera, mic=microphone,
-                         map2d=mymap, objdet=None)
+        agent[anum] = Agent(env=sim, cam=camera, mic=microphone,
+                            map2d=mymap, objdet=None)
 
         if True:
             # Move agent to a random ground location.
-            agent[k].move_random(to='ground')
+            agent[anum].move_random(to='ground')
         else:
             # User manually drives the agent into position.
-            agent[k].you_drive()
+            agent[anum].you_drive()
 
     if False:
         # Display color, semantic label, and depth images from one agent.
@@ -112,54 +136,66 @@ if __name__ == '__main__':
         while True:
             fnum += 1
             print(f'\n[[ Frame {fnum}, Time {sim.time:.2f} sec. ]]\n')
-            if sim.time > 46:
+            if sim.time > 45:                            # stop after 45 seconds
                 exit(0)
             f.fig.suptitle(f'⟦ Time: {sim.time:.2f} sec. ⟧', fontsize=10)
 
-            # Update the sensor configuartion of all agents.
-            for k in range(numagents):
-                if initsensors or (agent[k].cam and
-                                   np.random.rand() < prob_cam_reset):
-                    # Reset agent camera zoom and pan speed.
-                    agent[k].cam.set(zoom=np.random.rand())
-                    panstep[k] = np.deg2rad((1 if np.random.rand() > 0.5 else -1)
-                                            *(5-3*agent[k].cam.zoom))
-                    if verbose:
-                        print(f"Reset agent {k}'s camera")
+            # Update the configuartion of all agents' sensors.
+            for anum in range(numagents):
+                print(f'Agent {anum+1}: camera', end='')
+                if agent[anum].cam:
+                    if np.random.rand() < prob_cam_onoff:
+                        agent[anum].cam.toggle_power()
+                        print(f' turned', end='')
+                    if agent[anum].cam.power == "on":
+                        if np.random.rand() < prob_cam_reset:
+                            # Reset agent camera pan speed and zoom.
+                            agent[anum].cam.set(zoom=np.random.rand())
+                            panstep[anum] = np.deg2rad((1 if np.random.rand() > 0.5 else -1)
+                                                    *(5-3*agent[anum].cam.zoom))
+                            print(f' PT reset')
+                        agent[anum].inc(orient=[0,0,panstep[anum]])
+                    print(f' {agent[anum].cam.power}', end='')
+                else:
+                    print(' not present', end='')
 
-                # Increment camera pan (rotation about z axis).
-                if agent[k].cam:
-                    agent[k].inc(orient=[0,0,panstep[k]])
+                print(', microphone', end='')
+                if agent[anum].mic:
+                    if np.random.rand() < prob_mic_onoff:
+                        agent[anum].mic.toggle_power()
+                        print(f' turned', end='')
+                    print(f' {agent[anum].mic.power}')
+                else:
+                    print(' not present')
+            print()
 
             # Update the 2D groundtruth map.
             mymap.Update()
 
             # Collect sensor data from all agents.
-            for k in range(numagents):
+            for anum in range(numagents):
                 if verbose:
-                    print(f'Agent {k+1}')
+                    print(f'Agent {anum+1}')
 
-                f.clearaxis(axisnum=k, keepimage=True)   # clear agent's display
+                # Clear agent display.
+                f.clearaxis(axisnum=anum, keepimage=True)
+                f.set(axisnum=anum, image=blackimage,
+                      axistitle=agent[anum].name, axisoff=True, shownow=True)
 
-                if agent[k].cam:
-                    imgs = agent[k].get_images(imlist=['color'])
-                    f.set(axisnum=k, image=imgs['color'],
-                          axistitle=agent[k].name, axisoff=True)
+                if agent[anum].cam:
+                    if agent[anum].cam.power == "on":
+                        # Get agent image.
+                        imgs = agent[anum].get_images(imlist=['color'])
+                        f.set(axisnum=anum, image=imgs['color'],
+                              axistitle=agent[anum].name, axisoff=True)
 
-                if agent[k].mic:
-                    audio = agent[k].get_audio(maxdist=250, verbose=verbose)
-
-                    # Plot the audio signal.
-                    nrows=imgs['color'].shape[0]
-                    ncols=imgs['color'].shape[1]
-                    sig = audio['signal']
-                    s = np.ceil(len(sig)/ncols).astype(int)  # resample interval
-                    sig2 = sig[0:-1:s]
-                    x = np.arange(len(sig2))
-                    y = nrows/2 + audiorows*nrows*sig2/WorldObj.audio_max_measured
-                    f.set(axisnum=k)
-                    plt.plot(x, y, 'r', linewidth=0.5)
-                    plt.pause(0.1)
+                if agent[anum].mic:
+                    if agent[anum].mic.power == "on":
+                        # Get agent audio.
+                        audio = agent[anum].get_audio(maxdist=250, verbose=verbose)
+                        overlay_audio(audio['signal'], f, anum, imsize)
+                        if playaudio:
+                            play_audio(audio['signal'], audio['samplerate'])
 
             if outfolder is not None:
                 # Save figures to files.
@@ -167,5 +203,3 @@ if __name__ == '__main__':
                 mymap.mfig.savefig(f'{outfolder}/map_{fnum:07d}.png')
 
             sim.inc_time(dtime)
-
-            if initsensors: initsensors = False

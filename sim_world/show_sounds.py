@@ -14,19 +14,23 @@ from scipy.io import wavfile
 import matplotlib.pyplot as plt
 import subprocess
 import os
-import sounddevice as sd
 
 playtime = 4                      # how long to play each sound, in seconds
-audio_max = 2**14
+audio_max = 2**14                 # used to normalize audio signals
 
-folder = 'sounds/'
-files = glob.glob(folder + 'car*.wav') + glob.glob(folder + 'truck*.wav')
+folder = '/home/phil/research/visual_search/sim_world/sounds/'
+# files = glob.glob(folder + 'car*.wav') + glob.glob(folder + 'truck*.wav')
+files = glob.glob(folder + 'bird_01.wav') + \
+        glob.glob(folder + 'bird_05.wav') + \
+        glob.glob(folder + 'person_talking_01.wav') + \
+        glob.glob(folder + 'robot_02.wav')
+
 files.sort()
 
 plt.ion()
 
 for fname in files:
-    for k in range(2):
+    for k in range(1):
         fparts = os.path.split(fname)
         basefname = fparts[1]
         print(f'\nv{k} - {basefname}:')
@@ -59,7 +63,7 @@ for fname in files:
         if k == 0:
             ascale = tscale = 1.0
         else:
-            ascale = np.random.rand() + 0.5
+            ascale = np.random.rand() + 0.5       # amplitude scale in [0.5,1.5]
             tscale = np.random.rand() + 0.5
             print(f'    Ascale = {ascale:.2f}, Tscale = {tscale:.2f}')
             signal = ascale*signal
@@ -84,7 +88,7 @@ for fname in files:
         plt.draw()
         plt.pause(0.1)
 
-        # wavfile.write(f'tmp3/{basefname}', samplerate, signal)
+        # wavfile.write(fname, samplerate, signal)
         wavfile.write('tmp_sound.wav', samplerate, signal)
         subprocess.run(['mpv', 'tmp_sound.wav', '--length='+str(playtime)],
                        capture_output=True)

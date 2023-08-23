@@ -32,6 +32,7 @@ History:
 import numpy as np
 import time
 import matplotlib.colors as colors
+import matplotlib.pyplot as plt
 import vtk
 import vtk.util.colors
 import os
@@ -141,6 +142,7 @@ audio_max_scale = 2.0
 audio_normalize = {'bird':0.2, 'car':0.7, 'cat':0.3, 'cow':0.4, 'dog':0.4,
                    'drone':0.3, 'motorcycle':0.8, 'person':0.5, 'robot':0.3,
                    'sheep':0.4, 'traffic':0.6, 'truck':1.0}
+audio_cmap = plt.get_cmap('rainbow')
 
 class WorldObj:
     """
@@ -3639,6 +3641,8 @@ class SimWorld:
 
             maxdist: (float) The maximum distance (meters) of any object from
             the microphone for its audio signal to be heard by the microphone.
+            This is used to filter out objects that are too far away to
+            be heard, to speed up the computation.
 
             map2d: (Map2D) The 2D map of the environment. This is used only
             for displaying the ground truth audio tracks on the 2D map display.
@@ -3654,6 +3658,8 @@ class SimWorld:
                 'signal': The audio signalrecorded by the microphone during the
                 previous `duration` seconds. The sample rate of this signal is
                 the default sample rate for the simulation.
+
+                'samplerate': The sample frequency (Hz) of the signal.
 
                 'psd': The power spectal density of the recorded audio signal.
 
@@ -3676,7 +3682,7 @@ class SimWorld:
         anum = 0
 
         if verbose:
-            print(f'  micpos=({micpos[0]:.1f},{micpos[1]:.1f}), rec_samples={rec_samples}')
+            print(f'  Mic pos=({micpos[0]:.1f},{micpos[1]:.1f}), rec_samples={rec_samples}')
             print(f'    {"Obj":15s} {"Sound":20s} {"ObjPos":16s} {"Dist":7s}'
                   f' {"DScale":6s} {"Vmax":>7s}')
 
@@ -3729,8 +3735,9 @@ class SimWorld:
                       f' ({obj.xctr:<6.1f} {obj.yctr:>6.1f}) {d:>7.1f} '
                       f' {scale:>8.1e} {vmax:>7.1f}')
                 if map2d:
-                    gh = map2d.line(micpos, [obj.xctr, obj.yctr])
-                    map2d.gh_audio_lines.extend(gh)
+                    c = audio_cmap(min(1,10*scale))
+                    map2d.line(micpos, [obj.xctr, obj.yctr], color=c, alpha=1,
+                               linestyle=':', linewidth=1)
 
             if show_plots:
                 # Plot the original signal.
@@ -3767,6 +3774,7 @@ class SimWorld:
         # Save the recorded sound.
         audio = {}
         audio['signal'] = sum_signal
+        audio['samplerate'] = audio_sample_rate
         audio['psd'] = psd
         audio['freq'] = freq
 

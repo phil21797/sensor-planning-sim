@@ -3,11 +3,16 @@ This is a class for displaying a 2D map of a SimWorld environemnt.
 
 Author:
     Phil David, US Army Research Laboratory, December 2021.
+
+Change History:
+    P. David, Parsons Corp., Added microphone sensors. Added code to handle
+    sensors that may be on or off.
 """
 
 import numpy as np
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
+from matplotlib.patches import Wedge
 import map3d
 from camera import *
 from microphone import *
@@ -163,11 +168,12 @@ class Map2D:
         self.maps = maps
         self.cams = []
         self.cam_ids = []
+        self.gh_cam_wedge = []
         self.gh_cam_circ1 = []
         self.gh_cam_line1 = []
         self.gh_cam_line2 = []
         self.gh_cam_text = []
-        self.gh_audio_lines = []
+        self.gh_lines = []
         self.num_cams = 0
         self.mics = []
         self.mic_ids = []
@@ -238,11 +244,13 @@ class Map2D:
         if self.num_cams > 0:
             # Add cameras and create temporary markers at the origin. Markers
             # will be moved to their correct locations by the call to Update().
+            r = 0.1*self.radius
             for k in range(self.num_cams):
-                self.gh_cam_line1.extend(plt.plot([0,0], [0,1], color='w',
-                                             linewidth=1.5, zorder=1))
-                self.gh_cam_line2.extend(plt.plot([0,0], [0,1], color='w',
-                                             linewidth=1.5, zorder=1))
+                self.mfig.ax[0].add_patch(w)
+                w = Wedge((0,0), r, 45, 135, zorder=1, facecolor=(1,0,0,0.6),
+                          edgecolor=(1,1,1,1), linewidth=1)
+                self.mfig.ax[0].add_patch(w)
+                self.gh_cam_wedge.append(w)
                 self.gh_cam_circ1.extend(plt.plot(0, 0, marker='o', markersize=9,
                                              markeredgecolor='w',
                                              markerfacecolor='k', zorder=2))
@@ -258,10 +266,10 @@ class Map2D:
             for k in range(self.num_mics):
                 self.gh_mic_circ1.extend(plt.plot(0, 0, marker='o', markersize=9,
                                              markeredgecolor='w',
-                                             markerfacecolor='none', zorder=4))
+                                             markerfacecolor='k', zorder=4))
                 self.gh_mic_circ2.extend(plt.plot(0, 0, marker='o', markersize=14,
-                                             markeredgecolor='w',
-                                             markerfacecolor='none', zorder=4))
+                                             markeredgecolor='w', markeredgewidth=2,
+                                             markerfacecolor='r', zorder=3))
                 if self.mic_ids[k]:
                     self.gh_mic_text.extend([plt.text(0, 0, str(self.mic_ids[k]),
                                                  fontsize=6, zorder=5)])
@@ -283,8 +291,7 @@ class Map2D:
 
         # Clear all the camera graphics from the current figure.
         for gh in self.gh_cam_circ1 + self.gh_mic_circ1 + self.gh_mic_circ2 + \
-                  self.gh_cam_line1 + self.gh_cam_line2 + self.gh_cam_text + \
-                  self.gh_mic_text :
+                  self.gh_cam_wedge + self.gh_cam_text + self.gh_mic_text:
             gh.remove()
 
         # Create a new 2D map in the existing figure.
@@ -346,11 +353,17 @@ class Map2D:
 
         # Create temporary markers at origin. Markers will be moved to their
         # correct locations by the call to Update().
+        r = 0.1*self.radius
         for k in range(numnewcams):
-            self.gh_cam_line1.extend(plt.plot([0,0], [0,1], color='w', linewidth=1.5,
-                                zorder=1))
-            self.gh_cam_line2.extend(plt.plot([0,0], [0,1], color='w', linewidth=1.5,
-                                zorder=1))
+            w = Wedge((0,0), r, -45, 45, zorder=1, facecolor=(1,0,0,0.6),
+                      edgecolor=(1,1,1,1), linewidth=1)
+            self.mfig.ax[0].add_patch(w)
+            self.gh_cam_wedge.append(w)
+            # self.gh_cam_poly.extend(plt.fill([0,1,-1], [0,1,1],
+                                             # zorder=1,
+                                             # facecolor='w',
+                                             # edgecolor='w',
+                                             # linewidth=1))
             self.gh_cam_circ1.extend(plt.plot(0, 0, marker='o', markersize=9,
                                 markeredgecolor='w', markerfacecolor='k',
                                 zorder=2))
@@ -423,11 +436,11 @@ class Map2D:
         # correct locations by the call to Update().
         for k in range(numnewmics):
             self.gh_mic_circ1.extend(plt.plot(0, 0, marker='o', markersize=9,
-                                markeredgecolor='w', markerfacecolor='none',
+                                markeredgecolor='w', markerfacecolor='k',
                                 zorder=4))
             self.gh_mic_circ2.extend(plt.plot(0, 0, marker='o', markersize=14,
-                                markeredgecolor='w', markerfacecolor='none',
-                                zorder=4))
+                                markeredgecolor='w', markerfacecolor='r',
+                                zorder=3))
             if self.mic_ids[numoldmics+k]:
                 self.gh_mic_text.extend([plt.text(0, 0, str(self.mic_ids[numoldmics+k]),
                                          fontsize=6, color='w', weight='bold',
@@ -447,9 +460,9 @@ class Map2D:
         Arguments:
             newmap: (Map3D) The 3D map that the 2D map is derived from.
         """
-        for gh in self.gh_audio_lines:
+        for gh in self.gh_lines:
             gh.remove()
-        self.gh_audio_lines = []
+        self.gh_lines = []
         self.Update_cameras(newmap)
         self.Update_microphones(newmap)
 
@@ -474,31 +487,30 @@ class Map2D:
             # Get position and direction of camera. This works whether or not
             # the camera is mounted on a vehicle.
             cpos, fp = self.cams[cnum].get_pos_fp()
-            cpos = cpos[:2]
-            fp = fp[:2]
-            cdir = fp - cpos
+            cpos = cpos[:2]       # (x, y)
+            fp = fp[:2]           # (x, y)
+            cdir = fp - cpos      # (dx, dy)
             cdir = cdir/np.linalg.norm(cdir)
 
-            # Direction of center of camera horizontal view.
-            x = 0.07*self.radius*cdir[0]
-            y = 0.07*self.radius*cdir[1]
-
-            # Directions of each side of camera horizontal view.
-            t = np.deg2rad(self.cams[cnum].hfov/2)  # half the horizontal FOV
-            x1 = x*np.cos(t) - y*np.sin(t)
-            y1 = x*np.sin(t) + y*np.cos(t)
-            x2 = x*np.cos(-t) - y*np.sin(-t)
-            y2 = x*np.sin(-t) + y*np.cos(-t)
+            # Angles (in degrees) of camera HFOV.
+            theta = np.rad2deg(np.arctan2(cdir[1],cdir[0]))
+            theta1 = theta - self.cams[cnum].hfov/2
+            theta2 = theta + self.cams[cnum].hfov/2
 
             # Update the camera marker.
-            plt.sca(self.mfig.ax[0])
-            self.gh_cam_line1[cnum].set_data([cpos[0],cpos[0]+x1],   # x coordinates
-                                         [cpos[1],cpos[1]+y1])   # y coordinates
-            self.gh_cam_line2[cnum].set_data([cpos[0],cpos[0]+x2],
-                                         [cpos[1],cpos[1]+y2])
+            self.gh_cam_wedge[cnum].set(center=cpos,
+                                        theta1=theta1,
+                                        theta2=theta2)
             self.gh_cam_circ1[cnum].set_data(cpos[0], cpos[1])
             if self.cam_ids[cnum]:
                 self.gh_cam_text[cnum].set_position((cpos[0], cpos[1]))
+
+            if self.cams[cnum].power == "on":
+                self.gh_cam_wedge[cnum].set(facecolor=(1,0,0,0.6),
+                                            edgecolor=(1,1,1,1))
+            else:
+                self.gh_cam_wedge[cnum].set(facecolor='none',
+                                            edgecolor=(1,1,1,1))
 
         # Show changes to the figure.
         self.mfig.update()
@@ -533,6 +545,11 @@ class Map2D:
             if self.mic_ids[mnum]:
                 self.gh_mic_text[mnum].set_position((mpos[0], mpos[1]))
 
+            if self.mics[mnum].power == "on":
+                self.gh_mic_circ2[mnum].set_markerfacecolor('r')
+            else:
+                self.gh_mic_circ2[mnum].set_markerfacecolor('k')
+
         # Show changes to the figure.
         self.mfig.update()
 
@@ -566,7 +583,8 @@ class Map2D:
                  zorder=0.5)    # fillstyle='none',
 
 
-    def line(self, p1, p2, color=(0.01,0.46,1), linewidth=1.5):
+    def line(self, p1, p2, color=(0.01,0.46,1), linestyle='--', linewidth=1.5,
+             zorder=1, alpha=0.6):
         """
         Draw  line on the map.
 
@@ -574,14 +592,13 @@ class Map2D:
             p1: (array-like) 2D position of the 1st endpoint of the line.
 
             p2: (array-like) 2D position of the 2nd endpoint of the line.
-
-            color: (str or 3-tuple) Color to draw the lines.
         """
         plt.sca(self.mfig.ax[0])
-        gh = plt.plot((p1[0], p2[0]), (p1[1], p2[1]), '--',
-                      color=color, linewidth=linewidth, zorder=1)
+        gh = plt.plot((p1[0], p2[0]), (p1[1], p2[1]), linestyle,
+                      color=color, linewidth=linewidth, zorder=zorder,
+                      alpha=alpha)
+        self.gh_lines.extend(gh)
         plt.pause(0.01)
-        return gh
 
 
     def WaitKeypress(self):

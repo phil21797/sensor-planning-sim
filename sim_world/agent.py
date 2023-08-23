@@ -134,7 +134,7 @@ class Agent:
         self.verbosity = ['off','low','medium','high'].index(verbosity.lower())
 
         if cam is None and mic is None:
-            raise Exception(self.name,' needs a camera or a microphone')
+            raise Exception(self.name,' has no sensors!')
 
         self.pos = np.array(pos, dtype=float)
         self.trgcm = cmjet1(101)          # colormap for displaying target boxes
@@ -526,7 +526,7 @@ class Agent:
             A dictionary of the audio signal properties is returned.
 
         """
-        if self.mic is None:
+        if self.mic is None or self.mic.power == "off":
             return None
 
         mymap = self.map2d if verbose else None
@@ -591,10 +591,6 @@ class Agent:
             of the agent (on which the camera is mounted), all determine the
             images generated.
         """
-
-        if self.cam is None:
-            return {}
-
         imgs = self.cam.get_images(self.env, imlist=imlist, filtersize=filtersize)
 
         if self.semseg is not None:

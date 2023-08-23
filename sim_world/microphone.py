@@ -73,6 +73,18 @@ class Microphone:
         self.pos = pos                      # use this only if camera is not mounted
         self.mount(mountedon, relpos=pos)   # object the camera is mounted on may be None
 
+        self.power = "on"
+
+
+    def toggle_power(self):
+        """
+        Toggle the microphone power.
+        """
+        if self.power == "on":
+            self.power = "off"
+        else:
+            self.power = "on"
+
 
     def identical(self, mic):
         """
@@ -163,9 +175,53 @@ class Microphone:
                   verbose=False, map2d=None) -> numpy.ndarray:
         """
         Get an audio recording from the microphone.
+
+        Usage:
+            audio = Microphone.get_audio(env, duration=3.0, maxdist=500,
+                                         map2d=None, verbose=False)
+
+        Arguments:
+            env: The SimWorld environment.
+
+            duration: (float) Duration (seconds) of the recording to fetch from
+            the microphone. The time period of the recording will begin at
+            `duration` seconds prior to the current time and end at the current
+            time.
+
+            maxdist: (float) The maximum distance (meters) of any object from
+            the microphone for its audio signal to be heard by the microphone.
+            This is used to filter out objects that are too far away to
+            be heard, to speed up the computation.
+
+            map2d: (Map2D) The 2D map of the environment. This is used only
+            for displaying the ground truth audio tracks on the 2D map display.
+            If `verbose` is False or `map2d` is None, then the ground truth
+            audio tracks are not displayed.
+
+            verbose: (bool) If True, print information about ground truth audio
+            tracks and, if `map2d` is not None, display these tracks on the 2D
+            map.
+
+        Returns:
+            audio: (dict) Dictionary with the following keys:
+                'signal': The audio signal recorded by the microphone during the
+                previous `duration` seconds. The sample rate of this signal is
+                the default sample rate for the simulation.
+
+                'samplerate': The sample frequency (Hz) of the signal.
+
+                'psd': The power spectal density of the recorded audio signal.
+
+                'freq': The frequency (Hz) at each sample in `psd`.
         """
-        pos = self.get_pos()
-        return env.get_audio(pos, duration=duration, maxdist=maxdist,
-                             map2d=map2d, verbose=verbose)
+        if self.power == "off":
+            # No audio signal when power is off.
+            audio = None
+        else:
+            pos = self.get_pos()
+            audio = env.get_audio(pos, duration=duration, maxdist=maxdist,
+                                 map2d=map2d, verbose=verbose)
+
+        return audio
 
 
