@@ -42,16 +42,16 @@ if __name__ == '__main__':
     imsize = (1280,720)       # size (cols,rows) of all rendered images
     dtime = 0.1               # time (seconds) between agent updates
     playaudio = False         # play recorded audio from agents?
-    prob_have_cam = 0.5       # probability that an agent has a camera
+    prob_have_cam = 0.6       # probability that an agent has a camera
     prob_have_mic = 0.8       # probability that an agent has a microphone
-    prob_cam_onoff = 0.5      # probability of switching a camera on/off on any step
-    prob_mic_onoff = 0.5      # probability of switching a microphone on/off on any step
+    prob_cam_onoff = 0.3      # probability of switching a camera on/off on any step
+    prob_mic_onoff = 0.3      # probability of switching a microphone on/off on any step
     prob_cam_reset = 0.1      # probability of resetting a camera pan & zoom on any step
     outfolder = './outputs'   # name of output folder, or None
     verbose = True            # display a lot of output?
 
     fnum = 0                  # frame number of saved images
-    blackimage = np.zeros(list(imsize[::-1])+[3])
+    blackimage = np.zeros(list(imsize[::-1])+[3], dtype=np.uint8)
 
     if outfolder != None:
         # Create a folder to save output in.
@@ -146,14 +146,14 @@ if __name__ == '__main__':
                 if agent[anum].cam:
                     if np.random.rand() < prob_cam_onoff:
                         agent[anum].cam.toggle_power()
-                        print(f' turned', end='')
+                        print(f' toggle_power', end='')
                     if agent[anum].cam.power == "on":
                         if np.random.rand() < prob_cam_reset:
                             # Reset agent camera pan speed and zoom.
                             agent[anum].cam.set(zoom=np.random.rand())
                             panstep[anum] = np.deg2rad((1 if np.random.rand() > 0.5 else -1)
                                                     *(5-3*agent[anum].cam.zoom))
-                            print(f' PT reset')
+                            print(f' reset_p/t', end='')
                         agent[anum].inc(orient=[0,0,panstep[anum]])
                     print(f' {agent[anum].cam.power}', end='')
                 else:
@@ -163,7 +163,7 @@ if __name__ == '__main__':
                 if agent[anum].mic:
                     if np.random.rand() < prob_mic_onoff:
                         agent[anum].mic.toggle_power()
-                        print(f' turned', end='')
+                        print(f' toggle_power', end='')
                     print(f' {agent[anum].mic.power}')
                 else:
                     print(' not present')

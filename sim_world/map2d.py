@@ -463,6 +463,12 @@ class Map2D:
         for gh in self.gh_lines:
             gh.remove()
         self.gh_lines = []
+
+        if self.maps.dynamic:
+            # Update the flat labels map.
+            self.flatlabels = self.maps.flatlabels()
+            self.mfig.update_image(self.flatlabels)
+
         self.Update_cameras(newmap)
         self.Update_microphones(newmap)
 
@@ -477,11 +483,6 @@ class Map2D:
 
         if self.num_cams <= 0:
             return
-
-        if self.maps.dynamic:
-            # Update the flat labels map.
-            self.flatlabels = self.maps.flatlabels()
-            self.mfig.update_image(self.flatlabels)
 
         for cnum in range(self.num_cams):
             # Get position and direction of camera. This works whether or not
@@ -526,11 +527,6 @@ class Map2D:
 
         if self.num_mics <= 0:
             return
-
-        if self.maps.dynamic:
-            # Update the flat labels map.
-            self.flatlabels = self.maps.flatlabels()
-            self.mfig.update_image(self.flatlabels)
 
         for mnum in range(self.num_mics):
             # Get position and direction of microphone. This works whether or not
