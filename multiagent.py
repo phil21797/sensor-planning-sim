@@ -1,5 +1,5 @@
 """
-Multiple agents operating in a common environment.
+Run the outdoor simulation with multiple agents operating in the environment.
 
 Author:
     Phil David, Parsons, May 1, 2023.
@@ -13,10 +13,118 @@ from microphone import *
 from agent import *
 from datetime import datetime
 from audio_io import *
+from fig import *
 import os
 
 audiorows = 0.5          # fraction of image rows (in [0,1]) over which to
                          # overlay audio signals
+
+
+def create_agents(numagents):
+    """
+    Create agents, each with their own camera and/or microphone. Each
+    agent will have a least one of these sensors.
+    """
+
+    print(f'Creating {numagents} agents...')
+    agent = [[]]*numagents
+
+    for k in range(numagents):
+        camera = microphone = None
+
+        if np.random.rand() <= prob_have_cam:
+            z = np.random.rand()
+            camera = PTZCamera(imsize=imsize, rnghfov=(3,54),
+                               rngpan=(-np.Inf,np.Inf), rngtilt=(-45,60),
+                               pos=(0,0,1), pan=0, tilt=0, zoom=z)
+
+        if camera is None or np.random.rand() <= prob_have_mic:
+            microphone = Microphone(pos=(0,0,1))
+
+        agent[k] = Agent(env=sim, cam=camera, mic=microphone,
+                            map2d=mymap, objdet=None)
+
+        if camera is not None:
+            agent[k].panstep = np.deg2rad((1 if np.random.rand() > 0.5 else -1)
+                                       *(5-3*camera.zoom))
+
+        if True:
+            # Move agent to a random ground location.
+            agent[k].move_random(to='ground')
+        else:
+            # User manually drives the agent into position.
+            agent[k].you_drive()
+
+    return agent
+
+
+def config_agent_sensors(agent):
+    """
+    Update the configuartion of all agents' sensors.
+    """
+
+    numagents = len(agent)
+
+    for k in range(numagents):
+        print(f'Agent {k+1}: camera', end='')
+        if agent[k].cam:
+            if np.random.rand() < prob_cam_onoff:
+                agent[k].cam.toggle_power()
+                print(f' toggle_power', end='')
+            if agent[k].cam.power == "on":
+                if np.random.rand() < prob_cam_reset:
+                    # Reset agent camera pan speed and zoom.
+                    agent[k].cam.set(zoom=np.random.rand())
+                    agent[k].panstep = np.deg2rad((1 if np.random.rand() > 0.5 else -1)
+                                            *(5-3*agent[k].cam.zoom))
+                    print(f' reset_p/t', end='')
+                agent[k].inc(orient=[0,0,agent[k].panstep])
+            print(f' {agent[k].cam.power}', end='')
+        else:
+            print(' not present', end='')
+
+        print(', microphone', end='')
+        if agent[k].mic:
+            if np.random.rand() < prob_mic_onoff:
+                agent[k].mic.toggle_power()
+                print(f' toggle_power', end='')
+            print(f' {agent[k].mic.power}')
+        else:
+            print(' not present')
+    print()
+
+
+def collect_agent_sensor_data(agent, f:Fig, playaudio:bool=False,
+                              verbose:bool=False):
+    """
+    Collect and display sensor data from all agents.
+    """
+
+    numagents = len(agent)
+
+    for k in range(numagents):
+        if verbose:
+            print(f'Agent {k+1}')
+
+        # Clear agent display.
+        f.clearaxis(axisnum=k, keepimage=True)
+        f.set(axisnum=k, image=blackimage,
+              axistitle=agent[k].name, axisoff=True, shownow=True)
+
+        if agent[k].cam:
+            if agent[k].cam.power == "on":
+                # Get agent image.
+                imgs = agent[k].get_images(imlist=['color'])
+                f.set(axisnum=k, image=imgs['color'],
+                      axistitle=agent[k].name, axisoff=True)
+
+        if agent[k].mic:
+            if agent[k].mic.power == "on":
+                # Get agent audio.
+                audio = agent[k].get_audio(maxdist=250, verbose=verbose)
+                overlay_audio(audio['signal'], f, k, imsize)
+                if playaudio:
+                    play_audio(audio['signal'], audio['samplerate'])
 
 
 def overlay_audio(sig, f, axnum, imsize):
@@ -37,6 +145,7 @@ def overlay_audio(sig, f, axnum, imsize):
 if __name__ == '__main__':
 
     # Program parameters.
+    sim_end_time = 45.0       # time (sec.) to run the simulation to
     randseed = 8370646        # random seed or None
     numagents = 6             # number of agents to place in the environment
     imsize = (1280,720)       # size (cols,rows) of all rendered images
@@ -83,32 +192,7 @@ if __name__ == '__main__':
 
     # Create the agents, each with their own camera and/or microphone. Each
     # agent will have a least one of these sensors.
-    print('Creating {:d} agents...'.format(numagents))
-    agent = [[]]*numagents
-    panstep = [0]*numagents         # camera pan step sizes
-    for anum in range(numagents):
-        camera = microphone = None
-
-        if np.random.rand() <= prob_have_cam:
-            z = np.random.rand()
-            camera = PTZCamera(imsize=imsize, rnghfov=(3,54),
-                               rngpan=(-np.Inf,np.Inf), rngtilt=(-45,60),
-                               pos=(0,0,1), pan=0, tilt=0, zoom=z)
-            panstep[anum] = np.deg2rad((1 if np.random.rand() > 0.5 else -1)
-                                       *(5-3*camera.zoom))
-
-        if camera is None or np.random.rand() <= prob_have_mic:
-            microphone = Microphone(pos=(0,0,1))
-
-        agent[anum] = Agent(env=sim, cam=camera, mic=microphone,
-                            map2d=mymap, objdet=None)
-
-        if True:
-            # Move agent to a random ground location.
-            agent[anum].move_random(to='ground')
-        else:
-            # User manually drives the agent into position.
-            agent[anum].you_drive()
+    agent = create_agents(numagents)
 
     if False:
         # Display color, semantic label, and depth images from one agent.
@@ -133,69 +217,19 @@ if __name__ == '__main__':
     print('Started agents... Close the figure to quit')
 
     with Fig(axpos=axpos, figtitle='Agent Cameras', figsize=(10,8)) as f:
-        while True:
+        while sim.time <= sim_end_time:
             fnum += 1
             print(f'\n[[ Frame {fnum}, Time {sim.time:.2f} sec. ]]\n')
-            if sim.time > 45:                            # stop after 45 seconds
-                exit(0)
             f.fig.suptitle(f'⟦ Time: {sim.time:.2f} sec. ⟧', fontsize=10)
 
-            # Update the configuartion of all agents' sensors.
-            for anum in range(numagents):
-                print(f'Agent {anum+1}: camera', end='')
-                if agent[anum].cam:
-                    if np.random.rand() < prob_cam_onoff:
-                        agent[anum].cam.toggle_power()
-                        print(f' toggle_power', end='')
-                    if agent[anum].cam.power == "on":
-                        if np.random.rand() < prob_cam_reset:
-                            # Reset agent camera pan speed and zoom.
-                            agent[anum].cam.set(zoom=np.random.rand())
-                            panstep[anum] = np.deg2rad((1 if np.random.rand() > 0.5 else -1)
-                                                    *(5-3*agent[anum].cam.zoom))
-                            print(f' reset_p/t', end='')
-                        agent[anum].inc(orient=[0,0,panstep[anum]])
-                    print(f' {agent[anum].cam.power}', end='')
-                else:
-                    print(' not present', end='')
-
-                print(', microphone', end='')
-                if agent[anum].mic:
-                    if np.random.rand() < prob_mic_onoff:
-                        agent[anum].mic.toggle_power()
-                        print(f' toggle_power', end='')
-                    print(f' {agent[anum].mic.power}')
-                else:
-                    print(' not present')
-            print()
+            # Update the configuartion of all agent sensors.
+            config_agent_sensors(agent)
 
             # Update the 2D groundtruth map.
             mymap.Update()
 
-            # Collect sensor data from all agents.
-            for anum in range(numagents):
-                if verbose:
-                    print(f'Agent {anum+1}')
-
-                # Clear agent display.
-                f.clearaxis(axisnum=anum, keepimage=True)
-                f.set(axisnum=anum, image=blackimage,
-                      axistitle=agent[anum].name, axisoff=True, shownow=True)
-
-                if agent[anum].cam:
-                    if agent[anum].cam.power == "on":
-                        # Get agent image.
-                        imgs = agent[anum].get_images(imlist=['color'])
-                        f.set(axisnum=anum, image=imgs['color'],
-                              axistitle=agent[anum].name, axisoff=True)
-
-                if agent[anum].mic:
-                    if agent[anum].mic.power == "on":
-                        # Get agent audio.
-                        audio = agent[anum].get_audio(maxdist=250, verbose=verbose)
-                        overlay_audio(audio['signal'], f, anum, imsize)
-                        if playaudio:
-                            play_audio(audio['signal'], audio['samplerate'])
+            # Collect and display sensor data from all agents.
+            collect_agent_sensor_data(agent, f, playaudio, verbose)
 
             if outfolder is not None:
                 # Save figures to files.

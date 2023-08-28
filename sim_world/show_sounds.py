@@ -18,7 +18,7 @@ import os
 playtime = 4                      # how long to play each sound, in seconds
 audio_max = 2**14                 # used to normalize audio signals
 
-folder = '/home/phil/research/visual_search/sim_world/sounds/'
+folder = './sim_world/sounds/'
 # files = glob.glob(folder + 'car*.wav') + glob.glob(folder + 'truck*.wav')
 files = glob.glob(folder + 'bird_01.wav') + \
         glob.glob(folder + 'bird_05.wav') + \
