@@ -1,6 +1,11 @@
 """
-Load sound files (.wav) from a folder, modify the duration and amplitude,
-and play them.
+Load sound files (.wav) from a folder, modify the duration and amplitude
+(optional), and play them. A fixed number of samples are played back from the
+middle of each signal.
+
+This program uses the system command "mpv" to play the audio files. If you don't
+have this audio player on your system, you will need to change that line of the
+code to use whatever audio player you do have on your system.
 
 Author:
     Phil David, Parsons, June 2023.
@@ -15,25 +20,25 @@ import matplotlib.pyplot as plt
 import subprocess
 import os
 
-playtime = 4                      # how long to play each sound, in seconds
-audio_max = 2**14                 # used to normalize audio signals
+if __name__ == '__main__':
 
-folder = './sim_world/sounds/'
-# files = glob.glob(folder + 'car*.wav') + glob.glob(folder + 'truck*.wav')
-files = glob.glob(folder + 'bird_01.wav') + \
-        glob.glob(folder + 'bird_05.wav') + \
-        glob.glob(folder + 'person_talking_01.wav') + \
-        glob.glob(folder + 'robot_02.wav')
+    rescale_resample = False       # should apply random scale and resampling?
+    playtime = 4                   # how long to play each sound, in seconds
+    audio_max = 2**14              # used to normalize audio signals
 
-files.sort()
+    # Get a list of audio files.
+    folder = './sounds/'
+    files = glob.glob(folder + '*.wav')
+    files.sort()
+    numfiles = len(files)
+    print(f'Found {numfiles} audio files in {folder}')
 
-plt.ion()
+    plt.ion()                                # enable interactive mode
 
-for fname in files:
-    for k in range(1):
+    for fname in files:
         fparts = os.path.split(fname)
         basefname = fparts[1]
-        print(f'\nv{k} - {basefname}:')
+        print(f'\n{basefname}:')
 
         wav = wavio.read(fname)
 
@@ -60,9 +65,8 @@ for fname in files:
         mag = max(abs(signal.min()), abs(signal.max()))
         signal = audio_max*(signal/mag)
 
-        if k == 0:
-            ascale = tscale = 1.0
-        else:
+        if rescale_resample:
+            # Rescale the amplitude and resample the signal.
             ascale = np.random.rand() + 0.5       # amplitude scale in [0.5,1.5]
             tscale = np.random.rand() + 0.5
             print(f'    Ascale = {ascale:.2f}, Tscale = {tscale:.2f}')
@@ -71,24 +75,28 @@ for fname in files:
             nsamples_new = int(np.ceil(tscale*nsamples))
             print(f'    nsamples_new = {nsamples_new}')
             x = np.linspace(0, nsamples-1, num=nsamples_new)
-            signal = np.interp(x, xp, signal)
+            signal = np.interp(x, xp, signal)                  # resample signal
             nsamples = nsamples_new
+        else:
+            ascale = tscale = 1.0
 
+        # Extract `playsamples` in the middle of the signal to playback.
         playnsamples = 20000000               # number of samples to play & save
         playnsamples = min(nsamples, playnsamples)
         start = int((nsamples - playnsamples)/2)
         signal = signal.astype(np.int16)
         signal = signal[start:start+playnsamples]
 
+        # Display the audio signal.
         plt.figure(figsize=(12,4))
-        plt.title(f'v{k} - {fparts[1]}: A={ascale:.2f}, T={tscale:.2f}')
+        plt.title(f'{fparts[1]}: AmpScale={ascale:.2f}, TimeScale={tscale:.2f}')
         plt.plot(signal, 'b-')
         plt.xlim(0, playnsamples)
         plt.ylim(-1.5*audio_max, 1.5*audio_max)
         plt.draw()
         plt.pause(0.1)
 
-        # wavfile.write(fname, samplerate, signal)
+        # Save the audio signal and then play the file using a system command.
         wavfile.write('tmp_sound.wav', samplerate, signal)
         subprocess.run(['mpv', 'tmp_sound.wav', '--length='+str(playtime)],
                        capture_output=True)

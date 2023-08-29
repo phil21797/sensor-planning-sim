@@ -178,14 +178,14 @@ if __name__ == '__main__':
 
     # Create a random outdoor environmeent.
     sim = SimWorld(imsize=imsize, timeofday=[700,1800], env_radius=200,
-                   bldg_density=1, road_density=2.0, clutter_density=0.5,
-                   plant_density=1, people_density=0.1, animal_density=0.1,
-                   vehicle_density=0.1, airborne_density=0.05,
-                   bldg_plant_density=0.5, barrier_density=1, gndfeat_density=0.2,
-                   lookouts=True, probwindowoccupied=0.25,
-                   p_over_building={'person':0.5, 'clutter':0.1, 'animal':1.0},
-                   p_over_road={'person':0.1, 'clutter':0.05, 'animal':0.2},
-                   textures='textures', rand_seed=randseed)
+                bldg_density=1, road_density=2.0, clutter_density=0.5,
+                plant_density=1, people_density=0.1, animal_density=0.1,
+                vehicle_density=0.1, airborne_density=0.05,
+                bldg_plant_density=0.5, barrier_density=1, gndfeat_density=0.2,
+                lookouts=True, probwindowoccupied=0.25,
+                p_over_building={'person':0.5, 'clutter':0.1, 'animal':1.0},
+                p_over_road={'person':0.1, 'clutter':0.05, 'animal':0.2},
+                textures='textures', rand_seed=randseed)
 
     # Create and display a 2D map of the environment.
     mymap = Map2D(maps=sim.map3d, size=8, label_colors=sim.label_colors)
