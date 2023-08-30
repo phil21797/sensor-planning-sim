@@ -1,20 +1,21 @@
-
+<br>
 # Sensor Planning Simulation Environment
-
+<br>
  <p align="center">  
  <img src="README.images/camera_image.png">
- </p>
+ </p><br>
  
 ## Overview
 
 **The goal of this project is to provide a simulation environment to support the research and development of multi-agent, multi-sensor, surveillance algorithms in large, outdoor environments.**
 
-This project supports the Army Research Laboratory's Internet of Battlefield Things (IoBT) program. 
+This project supports the Army Research Laboratory's Internet of Battlefield Things (IoBT) program (https://www.arl.army.mil/cras/iobt-cra/). 
 
 This simulator procedurally generates random, quasi-photorealistic, 3D urban environments that may be used to train and evaluate mutl-agent perception and planning algorithms. The size and compexity of the generated environments, and the number of sensor-equiped agents, are limited only by the available computing resources. See the [sim_world/README](sim_world/README.md) file for more information about the simulator's capabilities.
 
+<br>
 
-## Groundtruth Map
+## Multiagent, Multisensor Surveillance
 
 
 <table>
@@ -33,9 +34,11 @@ The groundtruth map shows static and dynamic objects, agents,  and their sensors
 <td><img src="README.images/montage.png"><br>
 <p align="Left"> Display at one instant in a multiagent simulation.  Left: A 2D "map" representation of the environment.  Red and transparent wedges represent PTZ camera fields-of-view. Red and black rings represent microphones. Colored dotted lines represent possible acoustic detections. Right: Camera images and overlayed microphone sensor data as observed by the six agents shown in the 2D map. </td></p>
 </tr>
-</table><br>
+</table>
 
 Here's a [video](./sim_demo.mp4) showing a short run of the simulator.
+
+<br>
 
 ## Running the code
 
@@ -49,6 +52,8 @@ Here's a [video](./sim_demo.mp4) showing a short run of the simulator.
 ~~~bash
 $ python multiagent.py
 ~~~
+ 
+ <br>
  
 ## Author
 
