@@ -43,13 +43,16 @@ Here's a [video](./sim_demo.mp4) showing a short run of the simulator.
 
 ## Running the code
 
-* This code was developed and tested on a Linux system, but should run on a Windows system with minor modifications.
+* This code was developed and tested on a Linux system, but should run on a Windows system with minor modifications. The following command may be used to recreate the environment in which this software was developed:
+~~~bash
+$ conda create --name <env> --file requirements.txt
+~~~
 
-* See the sim_world [README](sim_world/README.md) file for setup information.
+* See the sim_world [README](sim_world/README.md) file for additional setup information.
 
-* Add "sim_world" to your PYTHONPATH environment variable.
+* Add `.../sim_world` to your `PYTHONPATH` environment variable.
 
-* If desired, edit multiagent.py to change various program parameters.
+* If desired, edit `multiagent.py` to change various program parameters.
 
 * Run it:
 ~~~bash
