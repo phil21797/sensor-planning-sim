@@ -1,5 +1,4 @@
 
-<br>
 
 # Sensor Planning Simulation Environment
 <br>
@@ -34,7 +33,7 @@ The groundtruth map shows static and dynamic objects, agents,  and their sensors
 <table>
 <tr>
 <td><img src="README.images/montage.png"><br>
-<p align="Left"> Display at one instant in a multiagent simulation.  Left: A 2D "map" representation of the environment.  Red and transparent wedges represent PTZ camera fields-of-view. Red and black rings represent microphones. Colored dotted lines represent possible acoustic detections. Right: Camera images and overlayed microphone sensor data as observed by the six agents shown in the 2D map. </td></p>
+<p align="Left"> The above shows the display at one instant in a multiagent simulation.  Left: A 2D "map" representation of the environment.  Red and transparent wedges represent PTZ camera fields-of-view. Red and black rings represent microphones. Colored dotted lines represent possible acoustic detections. Right: Camera images and overlayed microphone sensor data as observed by the six agents shown in the 2D map. </td></p>
 </tr>
 </table>
 
@@ -65,6 +64,11 @@ Phil David
 
 &nbsp;&nbsp;&nbsp;&nbsp; Parsons Corp., 2023-06-01.
 
+<br>
+
+## Acknowledgment
+
+Mr. Jeff Goldman, U.S. Army DEVCOM, Army Research Laboratory, helped with setting up the acoustic sensor model.
 
 
 
