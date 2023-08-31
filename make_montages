@@ -8,9 +8,9 @@
 #
 # Description:
 #    Create 1920x1080 montage images from source images agents_*.png and map_*.png 
-#    in the folder $1 and save these to frame_*.png in the folder montages.
+#    in the folder $1 and save these to frame_*.png in the folder $2.
 #
-#    Video creation parameters: MP4 (h.264), HD 1080p 30 fps, High quality.
+#    Recommended video creation parameters: MP4 (h.264), HD 1080p 30 fps, High quality.
 #
 
 set -e     # exit on error
