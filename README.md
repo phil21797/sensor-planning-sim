@@ -43,6 +43,8 @@ Here's a [video](./sim_demo.mp4) showing a short run of the simulator.
 
 ## Running the code
 
+* This code was developed and tested on a Linux system, but should run on a Windows system with minor modifications.
+
 * See the sim_world [README](sim_world/README.md) file for setup information.
 
 * Add "sim_world" to your PYTHONPATH environment variable.
