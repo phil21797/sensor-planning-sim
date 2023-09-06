@@ -37,7 +37,7 @@ The groundtruth map shows static and dynamic objects, agents,  and their sensors
 </tr>
 </table>
 
-Here's a [video](./sim_demo.mp4) showing a short run of the simulator.
+Here's a [video](./sim_demo_01.mp4) showing a short run of the simulator.
 
 <br>
 
