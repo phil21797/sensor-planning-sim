@@ -42,6 +42,7 @@ import skimage
 import pathlib
 import imageio
 import wavio
+from enum import Enum
 import scipy.signal as sig
 import skimage.measure as skm
 from skimage.morphology import disk
@@ -144,6 +145,14 @@ audio_normalize = {'bird':0.2, 'car':0.7, 'cat':0.3, 'cow':0.4, 'dog':0.4,
                    'sheep':0.4, 'traffic':0.6, 'truck':1.0}
 audio_cmap = plt.get_cmap('rainbow')
 
+
+# Different types of object motion.
+class Motion(Enum):
+    Static = 1        # do not move
+    Random = 2        # choose new random direction when encountering obstacle
+    DefinedPath = 3   # follow a predefined path
+
+
 class WorldObj:
     """
     Class for individual objects (person, clutter, building, signs, etc.) in
@@ -169,7 +178,7 @@ class WorldObj:
     def __init__(self, renderer, worldviews, objtags=None, pos=None, rot=(0,0,0),
                  axis1=None, axis2=None, rect2d=None, rect3d=None, rot90=False,
                  cylinder=None, height=None, orient=None, ellipsoid=None,
-                 sphere=None, labelobject=False, static=False):
+                 sphere=None, labelobject=False, motiontype:Motion=Motion.Random):
         """
         Create a new world object.
 
@@ -177,7 +186,8 @@ class WorldObj:
             obj = WorldObj(renderer, worldviews, objtags=None, pos=None,
                            rot=(0,0,0), axis1=None, axis2=None, rect2d=None,
                            rect3d=None, rot90=False, cylinder=None, ellipsoid=None,
-                           sphere=None, labelobject=False, static=False)
+                           sphere=None, labelobject=False,
+                           motiontype:Motion=Motion.Random)
 
         Arguments:
             renderer: A list of VTK renderers to which the object should be added.
@@ -188,7 +198,8 @@ class WorldObj:
             objtags: The tags of the object (string or set of strings). E.g.,
             'sign.stop' or {'sign', 'stop', '123'}.
 
-            static: (bool) Is the object required to be static? Default is False.
+            motiontype: (Motion) The type of motion that the object may exhibit.
+            The default is Motion.Random motion.
 
             One or more geometric object descriptors must be provided:
                 pos: [x, y, z]
@@ -235,6 +246,7 @@ class WorldObj:
         self.maxspeed = 0                   # maximum speed of a moving object
         self.speed = 0                      # initial speed, if object is moving
         self.shadow = True                  # create a shadow for the object
+        self.motion_type = motiontype       # type of this object's motion
         numworlds = len(renderer)
 
         lcflat = (1.0, 0.0, 0.0)  # Lighting coef. (ambient, diffuse, specular) for flat colors.
@@ -244,6 +256,12 @@ class WorldObj:
         keytags = {otype} if objid == '' else {otype, objid}
         self.type = otype                   # class label (a string)
         self.keytags = keytags
+
+        # Create a unique name for this object.
+        tmp = list(self.keytags)
+        tmp.sort(reverse=True)
+        tmp.append(str(self.id))
+        self.name = '_'.join(tmp)
 
         if otype in ['ground', 'road', 'gndfeat']:
 
@@ -551,7 +569,7 @@ class WorldObj:
                 dx = 2*(cr - 0.5)*w2
                 ctr[0] += dx
                 corner[0] -= dx
-            if not static and 'spd' in ftags:
+            if motiontype != Motion.Static and 'spd' in ftags:
                 # Save the range of allowed speeds (in meters/sec.) of the object.
                 speedrange = TagValue(ftags, 'spd')
                 if ',' in speedrange:
@@ -1434,7 +1452,7 @@ class SimWorld:
                  bldg_maxheight=30, road_min_sep=100, textures=None, sounds=None,
                  timeofday=None, offscreenrender=False, model_tweeks=None,
                  rand_seed=None, origin_axes=False, imsize=(800,600),
-                 dynamic_env=True, show_obj_ids=False, envtype='urban',
+                 dynamic_env=True, pathsfile=None, show_obj_ids=False, envtype='urban',
                  p_over_road={'person':0.1, 'clutter':0.1, 'animal':0.2, 'vehicle':0.5},
                  p_over_building={'person':0.5, 'clutter':0.2, 'animal':1.0, 'vehicle':0}):
 
@@ -1626,6 +1644,15 @@ class SimWorld:
             their speed tags (spd=min,max) are greater than zero. The
             "dynamic_env" argument must be True to allow these objects to move.
 
+            pathsfile: (str) Name of text file that defines objects moving along
+            fixed paths. The format of this file is:
+                <object_1_tags>
+                <Time_0> <X_0> <Y_0> <Z_0>
+                <Time_1> <X_1> <Y_1> <Z_1>
+                ...
+                <Time_N> <X_N> <Y_N <Z_N>
+                END
+
             show_obj_ids: (bool) Should object IDs be overlayed on the color
             images? Default is False. This may be useful for debugging code, but
             will probably cause problems for the object detector if it's
@@ -1670,6 +1697,7 @@ class SimWorld:
         self.rand_seed = rand_seed
         self.offscreenrender = offscreenrender
         self.dynamic_env = dynamic_env
+        self.pathsfile = pathsfile
         self.show_obj_ids = show_obj_ids
         self.envtype = envtype.lower()
         self.bkgtags = bkgtags
@@ -1772,7 +1800,7 @@ class SimWorld:
         modparts = ['lights', 'backgnds', 'roads', 'signs', 'buildings',
                     'barriers', 'gndfeats', 'plants', 'persons', 'lookouts',
                     'clutter', 'vehicles', 'animals', 'bldgplants',
-                    'urbananimals', 'airborne', 'shadows']
+                    'followpaths', 'urbananimals', 'airborne', 'shadows']
         self.model_seed = dict()
         for name in modparts:
             self.model_seed[name] = np.random.randint(1, 1e7)
@@ -1894,6 +1922,10 @@ class SimWorld:
         np.random.seed(self.model_seed["shadows"])
         self.insert_shadows()
 
+        if self.pathsfile:
+            np.random.seed(self.model_seed["followpaths"])
+            self.insert_fixed_path_objs(self.pathsfile)
+
         self.interact = True         # allow user interaction with the world?
         self.label_colors = label_colors   # may be needed by window interaction code
 
@@ -1911,8 +1943,9 @@ class SimWorld:
             lookouts=None, probwindowoccupied=None, verbosity=None, views=None,
             bldg_maxheight=None, road_min_sep=None, timeofday=None,
             offscreenrender=None, model_tweeks=None, rand_seed=None,
-            origin_axes=False, imsize=None, dynamic_env=None, show_obj_ids=None,
-            envtype=None, p_over_road=None, p_over_building=None):
+            origin_axes=False, imsize=None, dynamic_env=None, paths=None,
+            show_obj_ids=None, envtype=None, p_over_road=None,
+            p_over_building=None):
         """
         Create a new environment.
 
@@ -1963,6 +1996,7 @@ class SimWorld:
         if rand_seed: self.rand_seed = rand_seed
         if offscreenrender: self.offscreenrender = offscreenrender
         if dynamic_env: self.dynamic_env = dynamic_env
+        if paths: self.paths = paths
         if show_obj_ids: self.show_obj_ids = show_obj_ids
         if envtype: self.envtype = envtype.lower()
         if bkgtags: self.bkgtags = bkgtags
@@ -2164,6 +2198,10 @@ class SimWorld:
 
         np.random.seed(self.model_seed["shadows"])
         self.insert_shadows()
+
+        if self.pathsfile:
+            np.random.seed(self.model_seed["followpaths"])
+            self.insert_fixed_path_objs(self.pathsfile)
 
         self.interact = True         # allow user interaction with the world?
         self.label_colors = label_colors   # may be needed by window interaction code
@@ -2725,7 +2763,8 @@ class SimWorld:
                     # vectors (axis1, axis2) for the horizontal and vertical axis,
                     # respectively, of the texture image.
                     newobj = WorldObj(self.renderers, self.worldviews, objtags=tags,
-                                      pos=[x,y,z], axis1=ax1, axis2=ax2, static=True)
+                                      pos=[x,y,z], axis1=ax1, axis2=ax2,
+                                      motiontype=Motion.Static)
                     newobj.sound = sound
                     newobj.dynamic = False    # lookouts are not allowed to move
                     self.objs.append(newobj)
@@ -3037,6 +3076,9 @@ class SimWorld:
             or 3D maps. Shadows are just semi-transparent surfaces just above
             the ground in the color camera world view. These shadows are not
             cast onto any objects above the ground plane.
+
+            Shadows of other objects, such as people and vehicles, must be part
+            of the objects texture image.
         """
 
         if self.idx_color == None: return
@@ -3281,6 +3323,7 @@ class SimWorld:
             or road.
         """
         objtype = objtype.lower()
+        motiontype = Motion.Static
         if self.verbosity > 0: print('Creating {} {}s...'.format(numobjects, objtype), end="")
         inctags = objtype+"_"+inctags  # tags to include in texture image search
         exctags += "_label"          # tags to exclude from texture image search
@@ -3464,7 +3507,7 @@ class SimWorld:
             good_location = False
             num_gnd = len(xy_gnd)
             gnd_index = 0
-            static_obj = False                      # is object allowed to move?
+            motiontype = Motion.Random
             while not good_location:
                 if 'b' in tags and numbuildinglocs > 0 and np.random.rand() <= p_over_building:
                     # Place above or on top of a building.
@@ -3484,7 +3527,7 @@ class SimWorld:
                     elev += bldghght
                     zctr += bldghght              # place object on top of building
                     if objtype != "airborne":
-                        static_obj = True
+                        motiontype = Motion.Static
                 elif 'r' in tags and numroadlocs > 0 and np.random.rand() <= p_over_road:
                     # Place above or on a road.
                     xy = xy_road[numroadlocs-1]
@@ -3540,86 +3583,275 @@ class SimWorld:
             if False:
                 print(f"Created {objtype} at pos ({xy[0]},{xy[1]})")
 
-            if "clutter" in tags:
-                sound = None           # assume clutter is stationary and silent
-            else:
-                soundtags = tags & set(WorldObj.tag2soundid.keys())
-                if len(soundtags) > 0:
-                    # Create a sound for the object. First choose a single random
-                    # sound tag from the set of sound tags that the object may
-                    # generate, then choose a random sound matching that tag. The
-                    # object is also assigned a random position in its audio signal
-                    # to be the sample at time zero (the start of the simulation).
-                    t = np.random.choice(list(soundtags))
-                    sid = np.random.choice(list(WorldObj.tag2soundid[t]))
-                    sound = WorldObj.sounds[sid].copy()
-                    WorldObj.sounds[sid]['numoccur'] += 1
-                    dvol = 1 - 0.25*np.random.rand()        # perturb volume
-                    signal = dvol*sound['signal']           # amplitude scale
-                    tscale = 2*np.random.rand() + 0.5       # time scale
-                    xp = np.arange(0, sound['nsamples'])    # original sample points
-                    nsamples_new = int(np.ceil(tscale*sound['nsamples']))
-                    x = np.linspace(0, sound['nsamples']-1, num=nsamples_new)
-                    sound['signal'] = np.interp(x, xp, signal)
-                    sound['nsamples'] = nsamples_new
-                    sound['duration'] = tscale*sound['duration']
-                    sound['samplezero'] = np.random.randint(nsamples_new)  # start position of signal
-                    sound['dvolume'] = dvol
+            self.insert_obj(txt, xy[0], xy[1], zctr, elev, width, height,
+                            motiontype=motiontype)
+
+            if False:
+                if "clutter" in tags:
+                    sound = None           # assume clutter is stationary and silent
                 else:
-                    sound = None
+                    soundtags = tags & set(WorldObj.tag2soundid.keys())
+                    if len(soundtags) > 0:
+                        # Create a sound for the object. First choose a single random
+                        # sound tag from the set of sound tags that the object may
+                        # generate, then choose a random sound matching that tag. The
+                        # object is also assigned a random position in its audio signal
+                        # to be the sample at time zero (the start of the simulation).
+                        t = np.random.choice(list(soundtags))
+                        sid = np.random.choice(list(WorldObj.tag2soundid[t]))
+                        sound = WorldObj.sounds[sid].copy()
+                        WorldObj.sounds[sid]['numoccur'] += 1
+                        dvol = 1 - 0.25*np.random.rand()        # perturb volume
+                        signal = dvol*sound['signal']           # amplitude scale
+                        tscale = 2*np.random.rand() + 0.5       # time scale
+                        xp = np.arange(0, sound['nsamples'])    # original sample points
+                        nsamples_new = int(np.ceil(tscale*sound['nsamples']))
+                        x = np.linspace(0, sound['nsamples']-1, num=nsamples_new)
+                        sound['signal'] = np.interp(x, xp, signal)
+                        sound['nsamples'] = nsamples_new
+                        sound['duration'] = tscale*sound['duration']
+                        sound['samplezero'] = np.random.randint(nsamples_new)  # start position of signal
+                        sound['dvolume'] = dvol
+                    else:
+                        sound = None
 
-            # Add the object to the model. The object is rendered on a flat 3D
-            # rectangle that orients towards the viewer. The position of the
-            # rectangle is defined by the lower left 3D corner (pos) and two 3D
-            # vectors (axis1, axis2) for the horizontal and vertical axis,
-            # respectively, of the texture image.
-            txt['numoccur'] += 1     # number of occrances of this texture image
-            newobj = WorldObj(self.renderers, self.worldviews, objtags=idtags,
-                              pos=[xy[0]-width/2,xy[1],zctr-height/2],
-                              static=static_obj, axis1=[width,0,0], axis2=[0,0,height])
-            newobj.mapscale = mapscale    # draw objs in map smaller than actual size
-            newobj.rect = [xy[0], xy[1], width/mapscale, width/mapscale]
-            newobj.elev = elev
-            newobj.tags = tags
-            newobj.sound = sound
-            self.objs.append(newobj)
+                # Add the object to the model. The object is rendered on a flat 3D
+                # rectangle that orients towards the viewer. The position of the
+                # rectangle is defined by the lower left 3D corner (pos) and two 3D
+                # vectors (axis1, axis2) for the horizontal and vertical axis,
+                # respectively, of the texture image.
+                txt['numoccur'] += 1     # number of occrances of this texture image
+                newobj = WorldObj(self.renderers, self.worldviews, objtags=idtags,
+                                  pos=[xy[0]-width/2,xy[1],zctr-height/2],
+                                  static=static_obj, axis1=[width,0,0], axis2=[0,0,height])
+                newobj.mapscale = mapscale    # draw objs in map smaller than actual size
+                newobj.rect = [xy[0], xy[1], width/mapscale, width/mapscale]
+                newobj.elev = elev
+                newobj.tags = tags
+                newobj.sound = sound
+                self.objs.append(newobj)
 
-            if sound != None:
-                # Keep a list of all objects that can make noise.
-                self.noise_makers.append(newobj)
+                if sound != None:
+                    # Keep a list of all objects that can make noise.
+                    self.noise_makers.append(newobj)
 
-            if 'tr' in tags:
-                # Create a ceiling around the tree trunk underneith the tree branches.
-                pos = np.array([float(n) for n in TagValue(tags,'tr').split('x')])
-                ceil = ('post', *pos)
-            else:
-                ceil = None
+                if 'tr' in tags:
+                    # Create a ceiling around the tree trunk underneith the tree branches.
+                    pos = np.array([float(n) for n in TagValue(tags,'tr').split('x')])
+                    ceil = ('post', *pos)
+                else:
+                    ceil = None
 
-            newobj.maprect = self.map3d.set(newobj.rect, oid=newobj.id,
-                                            olabel=objtype, oelev=newobj.elev,
-                                            ceiling=ceil)
+                newobj.maprect = self.map3d.set(newobj.rect, oid=newobj.id,
+                                                olabel=objtype, oelev=newobj.elev,
+                                                ceiling=ceil)
 
-            # Add the object's ID to the object's actors. This is used to make
-            # moving actors face the right direction while following the camera.
-            for actor in newobj.actors:
-                p = actor.GetProperty()
-                p.id = newobj.id
-                actor.SetProperty(p)
+                # Add the object's ID to the object's actors. This is used to make
+                # moving actors face the right direction while following the camera.
+                for actor in newobj.actors:
+                    p = actor.GetProperty()
+                    p.id = newobj.id
+                    actor.SetProperty(p)
 
-            self.followers.extend(newobj.actors)
-            newobj.dynamic = self.dynamic_env and newobj.maxspeed > 0
-            if newobj.dynamic:
-                newobj.forward_dir = TagValue(newobj.tags, 'f')
-                self.movers.append(newobj)
+                self.followers.extend(newobj.actors)
+                newobj.dynamic = self.dynamic_env and newobj.maxspeed > 0
+                if newobj.dynamic:
+                    newobj.forward_dir = TagValue(newobj.tags, 'f')
+                    self.movers.append(newobj)
 
-            if self.show_obj_ids:
-                # Display each object's ID overlayed on the color image.
-                actor = vtu.make_text(self.renderers[1], text=str(newobj.id),
-                                      textscale=0.3, pos=(xy[0], xy[1], zctr))
-                newobj.actors.append(actor)
+                if self.show_obj_ids:
+                    # Display each object's ID overlayed on the color image.
+                    actor = vtu.make_text(self.renderers[1], text=str(newobj.id),
+                                          textscale=0.3, pos=(xy[0], xy[1], zctr))
+                    newobj.actors.append(actor)
 
         if self.verbosity > 0: print(" ({})".format(numfailures))
         return
+
+
+    def insert_obj(self, txt:dict, x: float, y:float, zctr:float,
+                   elev:float, width:float, height:float,
+                   mapscale:int=2, motiontype:Motion=Motion.Random,
+                   path=None):
+        """
+        Arguments:
+            txt:dict - Dictionary holding all information about the object's
+            texture.
+
+            path: numpy.ndarry - An Nx4 Numpy arrary that specifies a predefined
+            trajectory for the object. Each row is [t, x, y, z] giving the time
+            and positon (x,y,z) of the object at that time. This is only used
+            when the object's `motiontype` is Motion.DefinedPath.
+        """
+
+        tags = txt['tags']
+        objtype, objid = TagTypeID(tags)
+        idtags = objtype + '_' + txt['id']     # tags to identify this particular object
+
+        if "clutter" in tags:
+            sound = None           # assume clutter is stationary and silent
+        else:
+            soundtags = tags & set(WorldObj.tag2soundid.keys())
+            if len(soundtags) > 0:
+                # Create a sound for the object. First choose a single random
+                # sound tag from the set of sound tags that the object may
+                # generate, then choose a random sound matching that tag. The
+                # object is also assigned a random position in its audio signal
+                # to be the sample at time zero (the start of the simulation).
+                t = np.random.choice(list(soundtags))
+                sid = np.random.choice(list(WorldObj.tag2soundid[t]))
+                sound = WorldObj.sounds[sid].copy()
+                WorldObj.sounds[sid]['numoccur'] += 1
+                dvol = 1 - 0.25*np.random.rand()        # perturb volume
+                signal = dvol*sound['signal']           # amplitude scale
+                tscale = 2*np.random.rand() + 0.5       # time scale
+                xp = np.arange(0, sound['nsamples'])    # original sample points
+                nsamples_new = int(np.ceil(tscale*sound['nsamples']))
+                xnew = np.linspace(0, sound['nsamples']-1, num=nsamples_new)
+                sound['signal'] = np.interp(xnew, xp, signal)
+                sound['nsamples'] = nsamples_new
+                sound['duration'] = tscale*sound['duration']
+                sound['samplezero'] = np.random.randint(nsamples_new)  # start position of signal
+                sound['dvolume'] = dvol
+            else:
+                sound = None
+
+        # Add the object to the model. The object is rendered on a flat 3D
+        # rectangle that orients towards the viewer. The position of the
+        # rectangle is defined by the lower left 3D corner (pos) and two 3D
+        # vectors (axis1, axis2) for the horizontal and vertical axis,
+        # respectively, of the texture image.
+        txt['numoccur'] += 1     # number of occrances of this texture image
+        newobj = WorldObj(self.renderers, self.worldviews, objtags=idtags,
+                          pos=[x-width/2,y,zctr-height/2], motiontype=motiontype,
+                          axis1=[width,0,0], axis2=[0,0,height])
+        newobj.mapscale = mapscale    # draw objs in map smaller than actual size
+        newobj.rect = [x, y, width/mapscale, width/mapscale]
+        newobj.elev = elev
+        newobj.tags = tags
+        newobj.sound = sound
+        self.objs.append(newobj)
+
+        if sound != None:
+            # Keep a list of all objects that can make noise.
+            self.noise_makers.append(newobj)
+
+        if 'tr' in tags:
+            # Create a ceiling around the tree trunk underneith the tree branches.
+            pos = np.array([float(n) for n in TagValue(tags,'tr').split('x')])
+            ceil = ('post', *pos)
+        else:
+            ceil = None
+
+        newobj.maprect = self.map3d.set(newobj.rect, oid=newobj.id,
+                                        olabel=objtype, oelev=newobj.elev,
+                                        ceiling=ceil)
+
+        # Add the object's ID to the object's actors. This is used to make
+        # moving actors face the right direction while following the camera.
+        for actor in newobj.actors:
+            p = actor.GetProperty()
+            p.id = newobj.id
+            actor.SetProperty(p)
+
+        self.followers.extend(newobj.actors)
+        newobj.dynamic = (motiontype == Motion.DefinedPath) or \
+                         (self.dynamic_env and newobj.maxspeed > 0)
+        if newobj.dynamic:
+            newobj.forward_dir = TagValue(newobj.tags, 'f')
+            newobj.defined_path = path
+            self.movers.append(newobj)
+
+        if self.show_obj_ids:
+            # Display each object's ID overlayed on the color image.
+            actor = vtu.make_text(self.renderers[1], text=str(newobj.id),
+                                  textscale=0.3, pos=(xy[0], xy[1], zctr))
+            newobj.actors.append(actor)
+
+
+    def insert_fixed_path_objs(self, pathsfile=None):
+        """
+        Insert moving objects that follow paths defined in a text file.
+
+        The pathsfile is a text file with the following format:
+            # This is a comment line
+            <Object_1_tags>               # this is a comment
+            <Time_0>, <X_0>, <Y_0>, <Z_0>
+            <Time_1>, <X_1>, <Y_1>, <Z_1>
+            ...
+            <Time_N>, <X_N>, <Y_N>, <Z_N>
+            END
+            ...
+            <Object_N_tags>
+            <Time_0>, <X_0>, <Y_0>, <Z_0>
+            <Time_1>, <X_1>, <Y_1>, <Z_1>
+            ...
+            <Time_N>, <X_N>, <Y_N>, <Z_N>
+            END
+
+        The # character indicates the start of a comment. Times within a given
+        object must be sequential. <Time_0> must always be 0. After an object
+        reaches its position at <Time_N>, it jumps back to its position at
+        <Time_0> on the next frame of the simulation.
+        """
+
+        if pathsfile is None:
+            return
+
+        linenum = 0
+        cnt = 0
+        newobj = True
+
+        with open(pathsfile) as f:
+            for line in f:
+                linenum += 1
+                line = line.split('#', 1)[0]
+                line = line.rstrip()
+                if line == "":
+                    continue
+                # print(f'Line {linenum}: {line}')
+                if newobj:
+                    txt = WorldObj.GetTexture(inctags=line, exctags='label')
+                    if txt == None:
+                        raise ValueError(f'Line {linenum} of file "{pathsfile}": '\
+                                         f'There are no textures for "{line}"')
+                    tags = txt['tags']
+                    txyz = []
+                    newobj = False
+                elif line.lower() == "end":
+                    if txyz == []:
+                        raise ValueError(f'Line {linenum} of file "{pathsfile}": '\
+                                         'Missing time and position data')
+                    t, x, y, z = txyz[0]
+                    width = txt['hsize']
+                    height = txt['vsize']
+                    zctr = z + height/2        # center of object in z-direction
+                    elev = z + height               # elevation at top of object
+                    self.insert_obj(txt, x, y, zctr, elev, width, height,
+                                    motiontype=Motion.DefinedPath,
+                                    path=np.array(txyz, dtype=float))
+                    newobj = True
+                    cnt += 1
+                else:
+                    try:
+                        t, x, y, z = [float(k) for k in line.split(',')]
+                    except:
+                        raise ValueError(f'Line {linenum} of file "{pathsfile}":\n'\
+                                         'Expected: <time>, <x>, <y>, <z>\n'\
+                                         f'Got: "{line}"')
+
+                    # Check that the XY coordinate is inside the environment.
+                    if x < -self.env_radius or x > self.env_radius or \
+                       y < -self.env_radius or y > self.env_radius:
+                        raise ValueError(f'Line {linenum} of file "{pathsfile}": '\
+                                         f'point ({x},{y},{z}) is outside environment')
+                    txyz.append([t,x,y,z])
+
+        if not newobj:
+            raise ValueError(f'Line {linenum} of file "{pathsfile}": '\
+                             f'missing "end" for {"_".join(list(TagTypeID(tags)))} object')
+
+        print(f'Creating {cnt} objects with predefined trajectories...')
 
 
     def get_audio(self, micpos, duration=3.0, maxdist=300, map2d=None,
@@ -3699,7 +3931,7 @@ class SimWorld:
             # Number of building cells in 3D map that line-of-sight intersects with.
             bldgcnt = self.map3d.IntersectCount(micpos, objpos, 'building')
 
-            if bldgcnt > 2:
+            if bldgcnt >= 2:
                 continue
 
             # Scale factor for the audio signal's amplitude based on the
@@ -3735,7 +3967,7 @@ class SimWorld:
                       f' ({obj.xctr:<6.1f} {obj.yctr:>6.1f}) {d:>7.1f} '
                       f' {scale:>8.1e} {vmax:>7.1f}')
                 if map2d:
-                    c = audio_cmap(min(1,10*scale))
+                    c = audio_cmap(float(min(1.0,10*scale)))
                     map2d.line(micpos, [obj.xctr, obj.yctr], color=c, alpha=1,
                                linestyle=':', linewidth=1)
 
@@ -4233,62 +4465,84 @@ class SimWorld:
         """
         Update the poses of all dynamic objects.
 
-        Dynamic objects include those that can translate (on the ground or in
-        the air) and the sky background. The sky background slowly rotates about
-        the origin so that clouds appear to move. SimWorld.dynamic_env must be
-        True for update dynamic objects, but not to make them face the camera.
-
-        Arguments:
-            dt: (float) Time (in seconds) since last update.
-
         Description:
-            The translation of movable objects is in a straight line (with no
-            change in elevation) until an ostacle is encountered. Then, a new
-            random direction is selected.
+            Dynamic objects include those that can translate (on the ground or
+            in the air) and the sky background. The sky background slowly
+            rotates about the origin so that clouds appear to move.
+            SimWorld.dynamic_env must be True for update dynamic objects, but
+            not to make them face the camera.
+
+            Objects may move in random directions or may follow a predefined
+            path (see insert_fixed_path_objs()). For objects that move in random
+            directions, the translation is in a straight line (with no change in
+            elevation) until an ostacle is encountered, and then a new random
+            direction is selected.
         """
 
-        dt = self.time - self.time_last
+        curtime = self.time
+        dt = curtime - self.time_last
 
         # Translate movable objects if the environment is dynamic.
         if self.dynamic_env and dt > 0:
             for obj in self.movers:
-                if obj.speed <= 0:
-                    # Object speed and velocity are meters/sec.
-                    obj.speed = np.random.uniform(obj.minspeed, obj.maxspeed)
-                    theta = np.random.uniform(0,2*np.pi)   # translation direction
-                    obj.vel = obj.speed*np.array([np.cos(theta),np.sin(theta),0])
+                if obj.motion_type == Motion.Random:
+                    # Move object along its random direction.
+                    if obj.speed <= 0:
+                        # Choose a new random direction and speed. Speed and
+                        # velocity are meters/sec.
+                        obj.speed = np.random.uniform(obj.minspeed, obj.maxspeed)
+                        theta = np.random.uniform(0,2*np.pi)   # translation direction
+                        obj.vel = obj.speed*np.array([np.cos(theta),np.sin(theta),0])
 
-                newpos = np.array(obj.rect[0:2]) + dt*obj.vel[0:2]   # (x,y) obj center
-                newdist = np.linalg.norm(newpos)           # dist from center of env
+                    newpos = np.array(obj.rect[0:2]) + dt*obj.vel[0:2]   # (x,y) obj center
+                    newdist = np.linalg.norm(newpos)           # dist from center of env
 
-                if newdist > self.map3d.map_radius - obj.xhalflen - 1:
-                    # Object is about to move outside the environment. Don't
-                    # make the move. Try a different direction next frame.
-                    obj.speed = 0
-                else:
-                    # The object's position is specified by the rectangle
-                    # [xcenter, ycenter, xhalflen, yhalflen].
-                    newrect = [*newpos, obj.xhalflen, obj.yhalflen]
-                    if self.map3d.isclear(newrect, obj.id, obj.type, obj.elev):
-                        # Move all actors for this object.
-                        obj.maprect = self.map3d.move(obj.rect, newrect, obj.type)
-                        obj.rect = newrect
-                        obj.xctr = newrect[0]
-                        obj.yctr = newrect[1]
-                        for act in obj.actors:
-                            apos = np.array(act.GetPosition())
-                            apos = apos + dt*obj.vel
-                            act.SetPosition(apos)
-                    else:
-                        # Can't move object at this time. Try again next frame.
+                    if newdist > self.map3d.map_radius - obj.xhalflen - 1:
+                        # Object is about to move outside the environment. Don't
+                        # make the move. Try a different direction next frame.
                         obj.speed = 0
+                    else:
+                        # The object's position is specified by the rectangle
+                        # [xcenter, ycenter, xhalflen, yhalflen].
+                        newrect = [*newpos, obj.xhalflen, obj.yhalflen]
+                        if self.map3d.isclear(newrect, obj.id, obj.type, obj.elev):
+                            # Move all actors for this object.
+                            obj.maprect = self.map3d.move(obj.rect, newrect, obj.type)
+                            obj.rect = newrect
+                            obj.xctr = newrect[0]
+                            obj.yctr = newrect[1]
+                            for act in obj.actors:
+                                apos = np.array(act.GetPosition())
+                                apos = apos + dt*obj.vel
+                                act.SetPosition(apos)
+                        else:
+                            # Can't move object at this time. Try again next frame.
+                            obj.speed = 0
+                elif obj.motion_type == Motion.DefinedPath:
+                    # Move object along its predefined path.
+                    # print(f'Moving object {obj.name} on defined path')
+                    t = curtime % obj.defined_path[-1,0]
+                    x = np.interp(t, obj.defined_path[:,0], obj.defined_path[:,1])
+                    y = np.interp(t, obj.defined_path[:,0], obj.defined_path[:,2])
+                    z = np.interp(t, obj.defined_path[:,0], obj.defined_path[:,3])
+                    newrect = [x, y, obj.xhalflen, obj.yhalflen]
+                    obj.maprect = self.map3d.move(obj.rect, newrect, obj.type)
+                    obj.rect = newrect
+                    pos = np.array([x, y, z + obj.zhalflen])
+                    obj.xctr = pos[0]
+                    obj.yctr = pos[1]
+                    obj.zctr = pos[2]
+                    for act in obj.actors:     # Move all actors for this object
+                        act.SetPosition(pos)
+                else:
+                    raise ValueError(f'Invalid motion type: {obj.motion_type}')
 
             # Rotate the planar facets of the sky cylinder about the origin.
             for act in self.sky_actors:
                 o = act.GetOrientation()
                 act.SetOrientation(0,0,o[2]+dt*self.sky_speed)
 
-        self.time_last = self.time
+        self.time_last = curtime
 
 
     def look_at_camera(self):

@@ -506,10 +506,10 @@ class Map3D:
 
         # Make sure all coordinates are in the range [0, self.mdim-1].
         md = self.mdim - 1
-        assert c0 >= 0 and c0 <= md, "Line endpoint c0 is outside of map"
-        assert c1 >= 0 and c1 <= md, "Line endpoint c1 is outside of map"
-        assert r0 >= 0 and r0 <= md, "Line endpoint r0 is outside of map"
-        assert r1 >= 0 and r1 <= md, "Line endpoint r1 is outside of map"
+        assert c0 >= 0 and c0 <= md, "Column of 1st line endpoint is outside of map"
+        assert c1 >= 0 and c1 <= md, "Column of 2nd line endpoint is outside of map"
+        assert r0 >= 0 and r0 <= md, "Row of 1s line endpoint is outside of map"
+        assert r1 >= 0 and r1 <= md, "Row of 2nd line endpoint is outside of map"
 
         # Row and column coordinates for line following.
         rows = np.round(np.linspace(r0, r1, num=maxrc, endpoint=True)).astype(int)

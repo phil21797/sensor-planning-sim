@@ -69,7 +69,7 @@ class Map2D:
             Default is None.
 
         Description:
-            if maps.dynamic is True, then the 2D map will be redrawn on each
+            If maps.dynamic is True, then the 2D map will be redrawn on each
             call to Map2D.Update. When maps.dynamic is False, only the camera
             overlays are updated when Map2D.Update is invoked. The map is
             dynamic if there are objects, such as people or vehicles, in the
@@ -359,11 +359,6 @@ class Map2D:
                       edgecolor=(1,1,1,1), linewidth=1)
             self.mfig.ax[0].add_patch(w)
             self.gh_cam_wedge.append(w)
-            # self.gh_cam_poly.extend(plt.fill([0,1,-1], [0,1,1],
-                                             # zorder=1,
-                                             # facecolor='w',
-                                             # edgecolor='w',
-                                             # linewidth=1))
             self.gh_cam_circ1.extend(plt.plot(0, 0, marker='o', markersize=9,
                                 markeredgecolor='w', markerfacecolor='k',
                                 zorder=2))
@@ -460,6 +455,7 @@ class Map2D:
         Arguments:
             newmap: (Map3D) The 3D map that the 2D map is derived from.
         """
+
         for gh in self.gh_lines:
             gh.remove()
         self.gh_lines = []
@@ -552,10 +548,10 @@ class Map2D:
 
     def LineOfSight(self, p0, p1, maxdensity=10):
         """
-        Check if there is aline of sight between two points in the 2D map.
+        Check if there is a line of sight between two points in the 2D map.
 
         Usage:
-            density = Map2@.LineOfSight(p0, p1)
+            density = Map2D.LineOfSight(p0, p1)
 
         Arguments:
             p0: (2d array-like) First 2D endpoint  (x,y) of the proposed line of
