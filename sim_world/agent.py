@@ -508,7 +508,7 @@ class Agent:
         self.env.you_drive(self.cam, holdpos=holdpos, map2d=map2d)
 
 
-    def get_audio(self, time=3.0, maxdist=300, verbose=False):
+    def get_audio(self, duration=3.0, maxdist=300, verbose=False):
         """
         Get audio signal from the agent's microphone.
 
@@ -516,8 +516,8 @@ class Agent:
             audio =  Agent.get_audio(dtime=1.0)
 
         Arguments:
-            time: (float) The time period (in seconds) over which to sample the
-            scene.
+            duration: (float) The time period (in seconds) over which to sample
+            the microphone's audio signal.
 
             maxdist: (float) The maximum distance (meters) of any object from
             the microphone for its audio signal to be heard by the microphone.
@@ -531,7 +531,7 @@ class Agent:
 
         mymap = self.map2d if verbose else None
 
-        audio = self.mic.get_audio(self.env, duration=3.0, maxdist=maxdist,
+        audio = self.mic.get_audio(self.env, duration=duration, maxdist=maxdist,
                                    verbose=verbose, map2d=mymap)
 
         return audio

@@ -104,7 +104,7 @@ label_colors = [(255,255,255),     #  0 = Unknown
                 (0,255,144),       #  8 = Plant
                 (240,240,200),     #  9 = Building
                 (178,223,191),     # 10 = Ground feature
-                (80,80,80),        # 11 = Road
+                (130,130,130),     # 11 = Road (was (80,80,80))
                 (0,0,255),         # 12 = Water
                 (160,155,115),     # 13 = Ground
                 (0,156,255)]       # 14 = Sky
@@ -127,21 +127,21 @@ hgt_plant_shadow = 0.01
 hgt_obj_shadow = 0.01      # obj in {person, animal, clutter, sign}
 
 audio_sample_rate = 16000  # resample all audio files at this rate (Hz)
-audio_record_dist = 3      # distance (meters) from source at which sounds are
-                           #    assumed to be recorded
+audio_record_dist = 10     # distance (meters) from source at which sounds are
+                           #    assumed to be recorded (was 3)
 
 # How should audio signals be normalized relative to the maximum, `audio_max`?
-# The default for any object is 0.5 when not specified. `audio_max` is the
-# initial maximum absolute amplitude (volume) of any audio signal assigned to an
-# object prior to that object's sound being measured by a microphone in a
-# simulated environment. This value must be in the range [0,1]. An object's
-# measured audio signal may be greater than this value if the object is closer
-# than `audio_record_dist` to a microphone. The maximum absolute measured
-# audio signal is limited to `audio_max_scale` x `audio_max`.
+# This value must be in the range [0,1]. The default for any object is 0.5 when
+# not specified. `audio_max` is the initial maximum absolute amplitude (volume)
+# of any audio signal assigned to an object prior to that object's sound being
+# measured by a microphone in a simulated environment. An object's measured
+# audio signal may be greater than this value if the object is closer than
+# `audio_record_dist` to a microphone. The maximum absolute measured audio
+# signal is limited to `audio_max_scale` x `audio_max`.
 audio_max = float(2**14)
 audio_max_scale = 2.0
 audio_normalize = {'bird':0.2, 'car':0.7, 'cat':0.3, 'cow':0.4, 'dog':0.4,
-                   'drone':0.3, 'motorcycle':0.8, 'person':0.5, 'robot':0.3,
+                   'drone':0.3, 'motorcycle':1.0, 'person':0.3, 'robot':0.3,
                    'sheep':0.4, 'traffic':0.6, 'truck':1.0}
 audio_cmap = plt.get_cmap('rainbow')
 
@@ -3902,7 +3902,7 @@ class SimWorld:
             traveled a distance d through the air.
         """
 
-        show_plots = False                    # plot all received audio signals?
+        show_plots = False                    # plot all measured audio signals?
 
         curtime = self.time              # time (sec.) since start of simulation
         sample_rate = self.audio_sample_rate
@@ -3915,8 +3915,7 @@ class SimWorld:
 
         if verbose:
             print(f'  Mic pos=({micpos[0]:.1f},{micpos[1]:.1f}), rec_samples={rec_samples}')
-            print(f'    {"Obj":15s} {"Sound":20s} {"ObjPos":16s} {"Dist":7s}'
-                  f' {"DScale":6s} {"Vmax":>7s}')
+            showed_heading = False
 
         for obj in self.noise_makers:
             objpos = [obj.xctr, obj.yctr, obj.zctr]
@@ -3959,15 +3958,23 @@ class SimWorld:
             src_signal = sound['signal']
 
             if verbose:
+                if not showed_heading:
+                    # Show the heading only one time.
+                    print(f'    {"Obj":<15s} {"Sound":<20s} {"ObjPos":<16s}'
+                          f' {"Dist":>6s} {"Scale":>8s} {"MaxSAmp":>9s}')
+                    showed_heading = True
+
                 t = list(sound['tags'])
                 t.sort(reverse=True)
-                vmax = scale*max(abs(src_signal.min()), abs(src_signal.max()))
+                vmax = 0
+                # vmax = scale*max(abs(src_signal.min()), abs(src_signal.max()))
                 print(f'    {"_".join(sorted(list(obj.keytags), reverse=True)):15s}'
                       f' {"_".join(t):19s} '
                       f' ({obj.xctr:<6.1f} {obj.yctr:>6.1f}) {d:>7.1f} '
-                      f' {scale:>8.1e} {vmax:>7.1f}')
+                      f' {scale:>8.1e} ', end='')
+                      # f' {scale:>8.1e} {vmax:>7.1f}')
                 if map2d:
-                    c = audio_cmap(float(min(1.0,10*scale)))
+                    c = audio_cmap(float(min(1.0, 2*scale)))
                     map2d.line(micpos, [obj.xctr, obj.yctr], color=c, alpha=1,
                                linestyle=':', linewidth=1)
 
@@ -3986,11 +3993,16 @@ class SimWorld:
                 p1 = min(p0+nremainig-1, num_src_samples-1)
                 num = p1 - p0 + 1
                 sum_signal[nrecorded:nrecorded+num] += scale*src_signal[p0:p0+num]
+                if verbose:
+                    vmax = max(vmax, abs(scale*src_signal[p0:p0+num]).max())
                 nrecorded += num
                 nremainig -= num
                 p0 += num
                 if p0 >= num_src_samples:
                     p0 = 0
+
+            if verbose:
+                print(f'{vmax:>7.1f}')
 
             if show_plots:
                 # Plot the summed signal.

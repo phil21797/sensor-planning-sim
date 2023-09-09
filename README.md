@@ -37,7 +37,11 @@ The groundtruth map shows static and dynamic objects, agents,  and their sensors
 </tr>
 </table>
 
-Here's a [video](./sim_demo_01.mp4) showing a short run of the simulator.
+## Updates
+
+**(11 Aug 2023)** Here's a [video](./sim_demo_01.mp4) showing a short run of the simulator.
+
+**(9 Sept. 2023)** The multiagent code (`multiagent.py`) and a lot of the supporting code has been updated. The latest version implements a simple multi-sensor control algorithm where an agent's microphone is turned on for a short time (e.g., 1 sec.) to check for sounds with amplitudes above a given threshold (i.e., audio detections). Whenever there are current audio detections, the agent's camera will scan the scene looking for the sources. When nothing is being detected by the microphone for a short time, the agent will shut off the camera and microphone for a few seconds (e.g., 5).  After this "sleep" period, the agent starts this process over by turning the microphone back on (with the camera still off). Here's a [video](./sim_demo_02.mp4) showing a short run of this multiagent algorithm.  This is not meant to be a useful algorithm, but only a simple example of how the agents can control their sensors in this simulation environment.
 
 <br>
 

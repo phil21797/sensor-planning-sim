@@ -14,6 +14,7 @@ from PIL import Image
 from fig import *
 from phutils import *
 from numbers import Number
+from typing import Union
 import math
 import time
 import numpy as np
@@ -73,17 +74,25 @@ class Microphone:
         self.pos = pos                      # use this only if camera is not mounted
         self.mount(mountedon, relpos=pos)   # object the camera is mounted on may be None
 
-        self.power = "on"
+        self.power_on = True
 
 
-    def toggle_power(self):
+    def power(self, mode:Union[bool,int,None]=None):
         """
-        Toggle the microphone power.
+        Turn the microphone power on or off.
+
+        Arguments:
+            mode:bool, int, None -- The new microphone power mode, 1/0 or
+            True/False. If None, then toggle the microphone power.
         """
-        if self.power == "on":
-            self.power = "off"
+        if mode == None:
+            self.power_on = False if self.power_on else True
+        elif type(mode) == int:
+            self.power_on = True if mode != 0 else False
+        elif type(mode) == bool:
+            self.power_on = mode
         else:
-            self.power = "on"
+            raise ValueError('Microphone mode must be True/False or 1/0 or None')
 
 
     def identical(self, mic):

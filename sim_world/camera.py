@@ -15,6 +15,7 @@ from fig import *
 from phutils import *
 from numbers import Number
 from panoimage import inv_cylindrical_proj
+from typing import Union
 import math
 import time
 import numpy as np
@@ -184,7 +185,7 @@ class PTZCamera:
         self.rot = Rot3d(angles=orient)       # pan/tilt device's 3D orientation
         self.orient = orient                     # save for making camera copies
 
-        self.power = "on"
+        self.power_on = True
 
 
     def identical(self, cam):
@@ -515,14 +516,22 @@ class PTZCamera:
             raise ValueError('One of arguments "hfov" or "vfov" must be provided')
 
 
-    def toggle_power(self):
+    def power(self, mode:Union[bool,int,None]=None):
         """
-        Toggle the camera power.
+        Turn the camera power on or off.
+
+        Arguments:
+            mode:bool, int, None -- The new camera power mode, 1/0 or
+            True/False. If None, then toggle the camera power.
         """
-        if self.power == "on":
-            self.power = "off"
+        if mode == None:
+            self.power_on = False if self.power_on else True
+        elif type(mode) == int:
+            self.power_on = True if mode != 0 else False
+        elif type(mode) == bool:
+            self.power_on = mode
         else:
-            self.power = "on"
+            raise ValueError('Camera mode must be True/False or 1/0 or None')
 
 
     def whathvf(self, zoom=None, hfov=None, vfov=None, foclen=None):

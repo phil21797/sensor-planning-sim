@@ -502,7 +502,7 @@ class Map2D:
             if self.cam_ids[cnum]:
                 self.gh_cam_text[cnum].set_position((cpos[0], cpos[1]))
 
-            if self.cams[cnum].power == "on":
+            if self.cams[cnum].power_on:
                 self.gh_cam_wedge[cnum].set(facecolor=(1,0,0,0.6),
                                             edgecolor=(1,1,1,1))
             else:
@@ -537,7 +537,7 @@ class Map2D:
             if self.mic_ids[mnum]:
                 self.gh_mic_text[mnum].set_position((mpos[0], mpos[1]))
 
-            if self.mics[mnum].power == "on":
+            if self.mics[mnum].power_on:
                 self.gh_mic_circ2[mnum].set_markerfacecolor('r')
             else:
                 self.gh_mic_circ2[mnum].set_markerfacecolor('k')

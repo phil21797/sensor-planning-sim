@@ -37,11 +37,11 @@ end
 
 # Motorcycle moves in narrow loop back and forth on one road.
 vehicle_07_motorcycle  
-0, 2, -76, 0
-10, 2, 76, 0
-11, -2, 76, 0
-21, -2, -76, 0
-22, 2, 76, 0
+0, 2, -74, 0
+10, 2, 74, 0
+11, -2, 74, 0
+21, -2, -74, 0
+22, 2, 74, 0
 end
 
 # Person moves between two buildings.
