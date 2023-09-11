@@ -181,7 +181,7 @@ Phil David, Parsons Corp., 2020-04-07: Added audio simulation of objects and mic
 
 ## Acknowledgment
 
-Mr. Jeff Goldman, U.S. Army DEVCOM, Army Research Laboratory, helped with setting up the acoustic sensor model.
+Mr. Jeff Goldman, U.S. Army DEVCOM, Army Research Laboratory, helped with the design of the acoustic sensor model.
 
 
 
