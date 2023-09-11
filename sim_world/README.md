@@ -147,9 +147,9 @@ $ python ptz_search_baseline.py
 
 <br>
 
-## YOLO v3
+## YOLO v4
 
-This project uses the YOLO v3 object detector implemented (in PyTorch) by DeNA (https://dena.com/) and obtained from https://github.com/DeNA/PyTorch_YOLOv3. Shown below are YOLO detections on two images from the simulator.
+This project uses the YOLO v4 object detector implemented (in PyTorch) by Alexey Bochkovskiy (https://arxiv.org/abs/2004.10934) and obtained from https://github.com/AlexeyAB/darknet. Shown below are YOLO detections on two images from the simulator.
 
 <table>
 <caption style="caption-side:bottom">
