@@ -15,7 +15,7 @@ import numpy as np
 import simworld as sim
 import vtkutils as vtu
 import panoimage as pano
-import ptzexplorer as ptzx
+#import ptzexplorer as ptzx
 import phutils as phu
 import munkres as munk
 from sklearn.cluster import KMeans
@@ -2436,10 +2436,10 @@ class Agent:
         self.update_minzoom()
 
         # Plan the deep PTZ exploration of the scene.
-        self.ptzexp = ptzx.PTZExplorer(self.panodepth, self.panolabel,
-                                       self.panominzoom, self.panosearchmask,
-                                       self.cam)
-        self.ptzexp.analyze()
+        #self.ptzexp = ptzx.PTZExplorer(self.panodepth, self.panolabel,
+        #                               self.panominzoom, self.panosearchmask,
+        #                               self.cam)
+        #self.ptzexp.analyze()
 
 
     def InitSearch(self, targets={'person'}, objofinterest={'person'},
