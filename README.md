@@ -54,11 +54,13 @@ The groundtruth map shows static and dynamic objects, agents,  and their sensors
 $ conda create --name <env> --file requirements.txt
 ~~~
 
-* See the sim_world [README](sim_world/README.md) file for additional setup information.
-
 * Add `.../sim_world` to your `PYTHONPATH` environment variable.
 
 * If desired, edit `multiagent.py` to change various program parameters.
+
+* If you want to run the YOLO object detector, download the YOLO weights into the folder `obj_detector/weights`.  See [obj_detector/weights/README](obj_detector/weights/README.md) for details.
+
+* See [sim_world/README](sim_world/README.md)  for additional setup information.
 
 * Run it:
 ~~~bash
