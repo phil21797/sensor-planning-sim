@@ -39,7 +39,7 @@ The groundtruth map shows static and dynamic objects, agents,  and their sensors
 
 ## Updates
 
-**14 Aug 2023** -- Updated method of creating objects to follow fixed trajectories. Now, these objects as well as sensing agents are listed in a text file created by the user. Various object movement commands are available to describe the objects' trajectories.  See the external environment definitions [README](README_envdefs.md) for more information.
+**14 Aug 2023** -- The method of creating objects to follow fixed trajectories has been updated. Now, these objects, as well as sensing agents, are described in a text file created by the user. Various object movement commands are available to describe the objects' trajectories.  See the external environment definitions [README](README_envdefs.md) for more information.
 
 **11 Aug 2023** -- Here's a [video](./sim_demo_01.mp4) showing a short run of the simulator.
 
