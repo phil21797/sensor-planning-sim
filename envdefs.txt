@@ -1,0 +1,70 @@
+# 
+# Define the position and properties of moving objects and agents in the 
+# environment.
+#
+# The general file format is:
+# 
+#     OBJECT <Object_1_tags>      # this is a comment
+#     START <x> <y> <z>
+#     <move_command_1>
+#     <move_command_2>
+#     ...
+#     <move_command_N>
+#     END
+#     ...
+#     AGENT <x> <y> <xfwd> <yfwd> <hascam> <hasmic> <initzoom> <panrange>
+#     ...
+#
+# Object movement commands are the following:
+#
+#    START <x> <y> <z>
+#    TIME <time> <x> <y> <z>
+#    DTIME <dtime> <x> <y> <z>
+#    SPEED <speed> <x> <y> <z>
+#    ARC <dir> <rad> <deg> <speed>
+#    STOP <dtime>     
+#
+# See README_envdefs.md for more details.
+
+# Car drives in a large rectangle with round corners.
+object vehicle_04_car  
+start -203 103 0
+speed 20 100 103 0
+arc right 4 90 7
+speed 20 101 5 0
+arc right 4 90 7
+speed 20 -203 4 0
+arc right 4 90 7
+speed 20 -203 98 0
+arc right 4 90 7
+end
+
+#object vehicle_07_motorcycle 
+#start 316 -4 0
+#end
+
+# Person walks in a 21m radius circle.
+object person_29
+start -1 21 0
+speed 4 -1.01 21 0
+arc left 21 360 4
+end
+
+agent -54 13 1 -0.3 1 1 0.2 90
+agent 50 50 -1 -1 1 1 0.2 90
+
+
+
+# The above definitions work with the following environment:
+#    SimWorld(imsize=self.imsize, timeofday=[700,1800],
+#    env_radius=400, bldg_density=1, road_density=1.0, clutter_density=0.5,
+#    plant_density=0.5, people_density=0, animal_density=0,
+#    vehicle_density=0, airborne_density=0,
+#    bldg_plant_density=0.5, barrier_density=1, gndfeat_density=0.2,
+#    lookouts=True, probwindowoccupied=0.25,
+#    p_over_building={'person':0.5, 'clutter':0.1, 'animal':1.0},
+#    p_over_road={'person':0.1, 'clutter':0.05, 'animal':0.2},
+#    textures='textures', rand_seed=randseed,
+#    dynamic_env=True, pathsfile=self.pathsfile)
+
+

@@ -3325,6 +3325,10 @@ class SimWorld:
         objtype = objtype.lower()
         motiontype = Motion.Static
         if self.verbosity > 0: print('Creating {} {}s...'.format(numobjects, objtype), end="")
+        if numobjects <= 0:
+            print()
+            return
+
         inctags = objtype+"_"+inctags  # tags to include in texture image search
         exctags += "_label"          # tags to exclude from texture image search
 
@@ -3769,89 +3773,50 @@ class SimWorld:
             newobj.actors.append(actor)
 
 
-    def insert_fixed_path_objs(self, pathsfile=None):
+    def insert_fixed_path_objs(self, obj_defs):
         """
-        Insert moving objects that follow paths defined in a text file.
+        Insert moving objects that follow fixed paths.
 
-        The pathsfile is a text file with the following format:
-            # This is a comment line
-            <Object_1_tags>               # this is a comment
-            <Time_0>, <X_0>, <Y_0>, <Z_0>
-            <Time_1>, <X_1>, <Y_1>, <Z_1>
-            ...
-            <Time_N>, <X_N>, <Y_N>, <Z_N>
-            END
-            ...
-            <Object_N_tags>
-            <Time_0>, <X_0>, <Y_0>, <Z_0>
-            <Time_1>, <X_1>, <Y_1>, <Z_1>
-            ...
-            <Time_N>, <X_N>, <Y_N>, <Z_N>
-            END
+        Arguments:
+            obj_defs:list -- A list of object definitions. Each object
+            definition is a list [tags, txyz]. `tags` is a string giving the
+            texture tags of the object and `txyz` is a list of the positions of
+            the object at various times throughout its trajectory. Each element
+            of txyz is a list [t, x, y, z] giving the position (x,y,z) of the
+            object at a time t. The elements of the list `txyz` must be sorted
+            in order of increasing time.
 
-        The # character indicates the start of a comment. Times within a given
-        object must be sequential. <Time_0> must always be 0. After an object
-        reaches its position at <Time_N>, it jumps back to its position at
-        <Time_0> on the next frame of the simulation.
         """
 
-        if pathsfile is None:
-            return
-
-        linenum = 0
         cnt = 0
-        newobj = True
+        self.obj_defs = []
 
-        with open(pathsfile) as f:
-            for line in f:
-                linenum += 1
-                line = line.split('#', 1)[0]
-                line = line.rstrip()
-                if line == "":
-                    continue
-                # print(f'Line {linenum}: {line}')
-                if newobj:
-                    txt = WorldObj.GetTexture(inctags=line, exctags='label')
-                    if txt == None:
-                        raise ValueError(f'Line {linenum} of file "{pathsfile}": '\
-                                         f'There are no textures for "{line}"')
-                    tags = txt['tags']
-                    txyz = []
-                    newobj = False
-                elif line.lower() == "end":
-                    if txyz == []:
-                        raise ValueError(f'Line {linenum} of file "{pathsfile}": '\
-                                         'Missing time and position data')
-                    t, x, y, z = txyz[0]
-                    width = txt['hsize']
-                    height = txt['vsize']
-                    zctr = z + height/2        # center of object in z-direction
-                    elev = z + height               # elevation at top of object
-                    self.insert_obj(txt, x, y, zctr, elev, width, height,
-                                    motiontype=Motion.DefinedPath,
-                                    path=np.array(txyz, dtype=float))
-                    newobj = True
-                    cnt += 1
-                else:
-                    try:
-                        t, x, y, z = [float(k) for k in line.split(',')]
-                    except:
-                        raise ValueError(f'Line {linenum} of file "{pathsfile}":\n'\
-                                         'Expected: <time>, <x>, <y>, <z>\n'\
-                                         f'Got: "{line}"')
+        for k in range(len(obj_defs)):
+            tags1 = obj_defs[k][0]
+            txyz = obj_defs[k][1]
 
-                    # Check that the XY coordinate is inside the environment.
-                    if x < -self.env_radius or x > self.env_radius or \
-                       y < -self.env_radius or y > self.env_radius:
-                        raise ValueError(f'Line {linenum} of file "{pathsfile}": '\
-                                         f'point ({x},{y},{z}) is outside environment')
-                    txyz.append([t,x,y,z])
+            txt = WorldObj.GetTexture(inctags=tags1, exctags='label')
+            if txt == None:
+                raise ValueError(f'There are no textures for "{tags}"')
+            tags = txt['tags']
 
-        if not newobj:
-            raise ValueError(f'Line {linenum} of file "{pathsfile}": '\
-                             f'missing "end" for {"_".join(list(TagTypeID(tags)))} object')
+            if txyz == []:
+                raise ValueError(f'Missing time and position data for object'\
+                                 f'#{cnt+1}, {tags1}')
 
-        print(f'Creating {cnt} objects with predefined trajectories...')
+            t, x, y, z = txyz[0]
+            width = txt['hsize']
+            height = txt['vsize']
+            zctr = z + height/2        # center of object in z-direction
+            elev = z + height               # elevation at top of object
+
+            self.insert_obj(txt, x, y, zctr, elev, width, height,
+                            motiontype=Motion.DefinedPath,
+                            path=np.array(txyz, dtype=float))
+            cnt += 1
+
+
+        print(f'Created {cnt} objects with predefined trajectories')
 
 
     def get_audio(self, micpos, duration=3.0, maxdist=300, map2d=None,

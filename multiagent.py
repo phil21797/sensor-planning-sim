@@ -49,22 +49,110 @@ class MultiAgentEnv:
             self.imdet = None
 
 
-    def create(self, envradius=500, randseed=None, agentdef=None,
+    def create(self, envradius=500, randseed=None, numagents=0,
                imsize=(1280,720), dtime=0.1, playaudio=False, prob_has_cam=1.0,
-               prob_has_mic=1.0, pathsfile=None, outfolder=None, showmap=True,
+               prob_has_mic=1.0, envdefsfile=None, outfolder=None, showmap=True,
                verbose=True):
         """
         Create a multiagent environment.
 
         Arguments:
-            randseed:int -- random seed or None.
+            randseed:int -- random seed or None. If None, then a new random
+            seed is chosen.
 
-            agentdef:int or 2D array-like -- If an int, this is the number of
-            agents to create, and each is moved to a random location in the
-            environment. Otherwise, this must be a 2D array-like where each row
-            of the array is
-              [xpos, ypos, xfwd, yfwd, hascam, hasmic, initzoom, panrange]
-            defining one agent:
+            numagents:int -- This is the number of agents to create, each of
+            which is moved to a random location in the environment.
+
+            imsize:tuple -- size (cols,rows) of all rendered images.
+
+            dtime:float -- time (seconds) between agent updates.
+
+            playaudio:bool --  play recorded audio from agents?
+
+            prob_has_cam:float -- probability that an agent has a camera.
+
+            prob_has_mic:float -- probability that an agent has a microphone.
+
+            envdefsfile:str or None -- file containing external environment
+            definitions. Currently, moving objects and agents may be defined in
+            this file. If this is not None, then the numagents argument is
+            ignored.
+
+            outfolder:str or None -- name of output folder, or None.
+
+            showmap:bool -- show the 2D groundtruth map?
+
+            verbose:bool -- display a lot of output?
+        """
+
+        self.envradius = envradius
+        self.randseed = randseed
+        self.imsize = imsize
+        self.dtime = dtime
+        self.playaudio = playaudio
+        self.prob_has_cam = prob_has_cam
+        self.prob_has_mic = prob_has_mic
+        self.outfolder = outfolder
+        self.showmap = showmap
+        self.verbose = verbose
+        self.agentdefs = []
+
+        if self.outfolder != None:
+            # Create a folder to save output in.
+            dt = datetime.now().strftime("%Y%m%d%H%M%S")
+            self.outfolder = self.outfolder + '_' + dt
+            if os.path.exists(self.outfolder):
+                print(f'Output folder "{self.outfolder}" already exists')
+                exit(1)
+            else:
+                try:
+                    os.mkdir(self.outfolder)
+                    print(f'Created output folder "{self.outfolder}"')
+                except:
+                    raise Exception(f'Unable to create output folder "{self.outfolder}"')
+
+        if type(envdefsfile) is str:
+            # Read external environment definitions.
+            self.read_env_defs(envdefsfile)
+            self.numagents = len(self.agent_defs)
+            self.defined_agents = True
+        else:
+            self.numagents = numagents
+            self.defined_agents = False
+
+        # Create a random outdoor environmeent.
+        self.sim = SimWorld(imsize=self.imsize, timeofday=[700,1800],
+                            env_radius=self.envradius,
+                            bldg_density=1, road_density=1.0, clutter_density=0.5,
+                            plant_density=0.5, people_density=0, animal_density=0,
+                            vehicle_density=0, airborne_density=0,
+                            bldg_plant_density=0.5, barrier_density=1, gndfeat_density=0.2,
+                            lookouts=True, probwindowoccupied=0.25,
+                            p_over_building={'person':0.5, 'clutter':0.1, 'animal':1.0},
+                            p_over_road={'person':0.1, 'clutter':0.05, 'animal':0.2},
+                            textures='textures', rand_seed=randseed,
+                            dynamic_env=True)
+
+        if showmap:
+            # Create and display a 2D map of the environment groundtruth.
+            self.map2d = Map2D(maps=self.sim.map3d, size=8,
+                               label_colors=self.sim.label_colors)
+        else:
+            self.map2d = None
+
+        self.sim.insert_fixed_path_objs(self.obj_defs)
+        self.create_agents()
+
+
+    def create_agents(self, camstep=0.25):
+        """
+        Create agents, each with their own camera and/or microphone. Each
+        agent should have a least one of these sensors.
+
+        If the agents are defined by the user (i.e., self.defined_agents is
+        True), then self.agentdef will be a 2D array-like where each row defines
+        one agent:
+            [xpos, ypos, xfwd, yfwd, hascam, hasmic, initzoom, panrange].
 
                 (xpos, ypos) is the agent's 2D position (z is 0) in the
                 environment.
@@ -85,99 +173,11 @@ class MultiAgentEnv:
                 can pan back and forth from -90 to 90 degrees. This is ignored
                 if the agent does not have a camera.
 
-            imsize:tuple -- size (cols,rows) of all rendered images.
-
-            dtime:float -- time (seconds) between agent updates.
-
-            playaudio:bool --  play recorded audio from agents?
-
-            prob_has_cam:float -- probability that an agent has a camera.
-
-            prob_has_mic:float -- probability that an agent has a microphone.
-
-            pathsfile:str -- file defining object trajectories, or None.
-
-            outfolder:str -- name of output folder, or None.
-
-            showmap:bool -- show the 2D groundtruth map?
-
-            verbose:bool -- display a lot of output?
-        """
-
-        self.envradius = envradius
-        self.randseed = randseed
-        self.agentdef = agentdef
-        self.imsize = imsize
-        self.dtime = dtime
-        self.playaudio = playaudio
-        self.prob_has_cam = prob_has_cam
-        self.prob_has_mic = prob_has_mic
-        self.pathsfile = pathsfile
-        self.outfolder = outfolder
-        self.showmap = showmap
-        self.verbose = verbose
-
-        if type(agentdef) is int:
-            self.numagents = agentdef
-            self.defined_agents = False
-        elif type(agentdef) in [list or np.ndarray]:
-            self.numagents = len(agentdef)
-            self.defined_agents = True
-        else:
-            raise ValueError('"agentdef" argument must be an int or 2D array-like')
-
-        if self.outfolder != None:
-            # Create a folder to save output in.
-            dt = datetime.now().strftime("%Y%m%d%H%M%S")
-            self.outfolder = self.outfolder + '_' + dt
-            if os.path.exists(self.outfolder):
-                print(f'Output folder "{self.outfolder}" already exists')
-                exit(1)
-            else:
-                try:
-                    os.mkdir(self.outfolder)
-                    print(f'Created output folder "{self.outfolder}"')
-                except:
-                    raise Exception(f'Unable to create output folder "{self.outfolder}"')
-
-        # Create a random outdoor environmeent.
-        self.sim = SimWorld(imsize=self.imsize, timeofday=[700,1800],
-                            env_radius=self.envradius,
-                            bldg_density=1, road_density=2.0, clutter_density=0.5,
-                            plant_density=1, people_density=0, animal_density=0,
-                            vehicle_density=0, airborne_density=0,
-                            bldg_plant_density=0.5, barrier_density=1, gndfeat_density=0.2,
-                            lookouts=True, probwindowoccupied=0.25,
-                            p_over_building={'person':0.5, 'clutter':0.1, 'animal':1.0},
-                            p_over_road={'person':0.1, 'clutter':0.05, 'animal':0.2},
-                            textures='textures', rand_seed=randseed,
-                            dynamic_env=True, pathsfile=self.pathsfile)
-
-        if showmap:
-            # Create and display a 2D map of the environment groundtruth.
-            self.map2d = Map2D(maps=self.sim.map3d, size=8,
-                               label_colors=self.sim.label_colors)
-        else:
-            self.map2d = None
-
-        self.create_agents()
-
-
-    def create_agents(self, camstep=0.25):
-        """
-        Create agents, each with their own camera and/or microphone. Each
-        agent should have a least one of these sensors.
-
-        If the agents are defined by the user (i.e., self.defined_agents is
-        True), then self.agentdef will be a 2D array-like where each row defines
-        one agent:
-            [xpos, ypos, xfwd, yfwd, hascam, hasmic, initzoom, panrange].
-        See MultiAgentEnv.create() for more details.
-
         Arguments:
-            camstep:float -- If an agent has a camera, and if it's turned on,
-            then change the camera pan angle by camstep*HFOV degrees on each
-            camera position update. The default value is 0.25.
+            camstep:float -- When an agent's camera is turned on (assuming the
+            agent has a camera), the change in camera pan angle from one frame
+            to the next (as implemented in Agent.config_sensors()) will be
+            camstep*HFOV degrees. The default value is 0.25.
         """
 
         print(f'Creating {self.numagents} agents...')
@@ -188,10 +188,10 @@ class MultiAgentEnv:
             # What sensors does this agent have?
             if self.defined_agents:
                 # Sensors are defined by user.
-                camera = True if self.agentdef[k][4] else None
-                microphone = True if self.agentdef[k][5] else None
-                iz = self.agentdef[k][6]                   # initial camera zoom
-                pr = self.agentdef[k][7]/2                # 1/2 camera pan range
+                camera = True if self.agent_defs[k][4] else None
+                microphone = True if self.agent_defs[k][5] else None
+                iz = self.agent_defs[k][6]                 # initial camera zoom
+                pr = self.agent_defs[k][7]/2              # 1/2 camera pan range
             else:
                 # Randomly assign sensors.
                 camera = True if np.random.rand() <= self.prob_has_cam else None
@@ -227,14 +227,240 @@ class MultiAgentEnv:
 
             if self.defined_agents:
                 # Move agent to user-defined position
-                self.agent[k].move(pos=self.agentdef[k][0:2],
-                                   fdir=self.agentdef[k][2:4])
+                self.agent[k].move(pos=self.agent_defs[k][0:2],
+                                   fdir=self.agent_defs[k][2:4])
             elif True:
                 # Move agent to a random ground location.
                 self.agent[k].move_random(to='ground')
             else:
                 # User manually drives the agent into position.
                 self.agent[k].you_drive()
+
+
+
+    def read_env_defs(self, envdefsfile:str=''):
+        """
+        Read additional environment definitions from a file.
+
+        Arguments:
+            envdefsfile:str -- Text file containing additional environment
+            definitions. The general format of this file is:
+
+                OBJECT <Object_1_tags>      # this is a comment
+                START <x> <y> <z>
+                <move_command_1>
+                <move_command_2>
+                ...
+                <move_command_N>
+                END
+
+                AGENT <x> <y> <xfwd> <yfwd> <hascam> <hasmic> <initzoom> <panrange>
+                ...
+
+            Any number of objects and agents my be defined. "Objects" are the
+            things that move around the environment that the agents are expected
+            to detect and track. The trajectory of each object is defined by a
+            sequence of object movement commands:
+
+                START <x> <y> <z> -- The starting position of the object (at
+                                     time 0).
+
+                TIME <time> <x> <y> <z>     -- Move to position (x,y,z) at
+                                               absolute time <time> sec.
+
+                DTIME <dtime> <x> <y> <z>   -- Move for <dtime> sec. to position
+                                               (x,y,z).
+
+                SPEED <speed> <x> <y> <z>   -- Move at speed <speed> to position
+                                               (x,y,z) where <speed> > 0.
+
+                ARC <dir> <rad> <deg> <speed>
+                                            -- Move through an arc in direction
+                                               <dir>, either LEFT or RIGHT,
+                                               radius <rad>, for <deg> degrees,
+                                               and at speed <speed>.
+
+                STOP <dtime>                -- Stop for <dtime> sec.
+
+            Times for an object must be listed sequentially and be increasing.
+            After an object reaches its final defined position, the object jumps
+            back to its starting position on the next frame of the simulation.
+
+            Any number of agents may be defined. Agents, which are stationary
+            except when moved by control algorithms external to the environment
+            simulation, possess sensors for detecting objects. Each agent
+            definition has the following parameters:
+
+                 <x> <y>       -- The 2D position (z is 0) of the agent in the
+                                  environment.
+
+                 <xfwd> <yfwd> -- The 2D forward-facing direction of the agent.
+
+                 <hascam>      -- 1 if the agent has a camera; otherwise, 0.
+
+                 <hasmic>      -- 1 if the agent has a microphone; otherwise, 0
+
+                 <initzoom>    -- Initial zoom (in [0,1]) of the agent's camera.
+
+                 <panrange>    -- Range of pan angles (in degrees) of the
+                                  agent's camera (e.g., 180 => pan from -90° to
+                                  90°). Note: A pan angle of 0° will point the
+                                  agent's camera in the direction (<xfwd>,
+                                  <yfwd>).
+
+            For reference, vehicles typically move at speeds between 22 and 36 m/s
+            on highways, and move at speeds up to 22 m/s on non-highways; and humans
+            typically walk at around 3 m/s, and jog at around 5-6 m/s.
+
+        Returns:
+            self.obj_defs: A list of object definitions. Each item in this list
+            is a list [tags, txyz] where tags is a string giving the texture tags
+            of the object and txyz is a list of lists [t, x, y, z] giving the
+            position of the object (x,y,z) at each time t.
+
+            self.agent_defs: A list of agent definitions. Each item in this list
+            is a list [x, y, xfwd, yfwd, hascam, hasmic, initzoom, panrange]
+            defining the properties of one agent.
+        """
+
+        self.obj_defs = []
+        self.agent_defs = []
+
+        if envdefsfile == '':
+            return
+
+        linenum = 0
+        objectcnt = 0
+        agentcnt = 0
+        objstate = 0        # object state: 0=none, 1=need "start", 2=need "end"
+
+        with open(envdefsfile) as f:
+            for line in f:
+                linenum += 1
+                line = line.split('#', 1)[0]
+                line = line.rstrip()
+                if line == "":
+                    continue
+                token = [s.lower() for s in line.split(' ') if s != '']
+                # print(f'Line {linenum}: {line}')
+                if token[0] == 'object':
+                    if objstate != 0:
+                        raise ValueError(f'Line {linenum} of file "{envdefsfile}":'\
+                                         f' new object before end of previous object: "{line}"')
+                    objstate = 1
+                    tags = token[1]
+                    txyz = []
+                elif token[0] == "start":
+                    # Start at time 0.
+                    if objstate != 1:
+                        raise ValueError(f'Line {linenum} of file "{envdefsfile}":'\
+                                         f' "start" before "object" def: "{line}"')
+                    txyz.append([0]+[float(v) for v in token[1:]])
+                    objstate = 2
+                elif token[0] == "end":
+                    if objstate != 2:
+                        raise ValueError(f'Line {linenum} of file "{envdefsfile}":'\
+                                         f' "end" without "object" def: "{line}"')
+                    if txyz == []:
+                        raise ValueError(f'Line {linenum} of file "{pathsfile}": '\
+                                         'Missing object time and position data')
+                    print('\nNew object:\n', np.array(txyz))
+                    self.obj_defs.append([tags, txyz])
+                    objstate = 0
+                    objectcnt += 1
+                elif token[0] == "agent":
+                    # Process an agent definition.
+                    try:
+                        x, y, xfwd, yfwd, hascam, hasmic, initzoom, panrange = \
+                                           [float(v) for v in token[1:]]
+                    except:
+                        raise ValueError(f'Line {linenum} of file "{envdefsfile}":\n'\
+                                         f'Expected: AGENT x y xfwd yfwd hascam hasmic initzoom panrange.\n' \
+                                         f'Got: "{line}"')
+                    self.agent_defs.append([x,y,xfwd,yfwd,hascam,hasmic,initzoom,panrange])
+                    agentcnt += 1
+                else:
+                    # Process an object movement command.
+                    if objstate != 2:
+                        raise ValueError(f'Line {linenum} of file "{envdefsfile}": '\
+                                         f'Expected object movement command. Got: "{line}"')
+                    if token[0] == "time":
+                        try:
+                            t, x, y, z = [float(v) for v in token[1:]]
+                        except:
+                            raise ValueError(f'Line {linenum} of file "{envdefsfile}":\n'\
+                                             f'Expected: TIME time x y x\n' \
+                                             f'Got: "{line}"')
+                        if t <= txyz[-1][0]:
+                            raise ValueError(f'Line {linenum} of file "{envdefsfile}":\n'\
+                                             f'Time must be > {txyz[-1][0]} (previous time): "{line}"')
+                        newtxyz = [[t, x, y, z]]
+                    elif token[0] == "dtime":
+                        try:
+                            dt, x, y, z = [float(v) for v in token[1:]]
+                        except:
+                            raise ValueError(f'Line {linenum} of file "{envdefsfile}":\n'\
+                                             f'Expected: DTIME dtime x y z\n' \
+                                             f'Got: "{line}"')
+                        t = txyz[-1][0] + dt
+                        newtxyz = [[t, x, y, z]]
+                    elif token[0] == "speed":
+                        try:
+                            spd, x, y, z = [float(v) for v in token[1:]]
+                        except:
+                            raise ValueError(f'Line {linenum} of file "{envdefsfile}":\n'\
+                                             f'Expected: SPEED speed x y z\n' \
+                                             f'Got: "{line}"')
+                        if spd <= 0:
+                            raise ValueError(f'Line {linenum} of file "{envdefsfile}":\n'\
+                                             f'Speed must be > 0: "{line}"')
+                        dist = np.linalg.norm(txyz[-1][1:4]-np.array([x,y,z]))
+                        t = txyz[-1][0] + dist/spd
+                        newtxyz = [[t, x, y, z]]
+                    elif token[0] == "stop":
+                        try:
+                            dt = float(token[1])
+                        except:
+                            raise ValueError(f'Line {linenum} of file "{envdefsfile}":\n'\
+                                             f'Expected: STOP dtime\n' \
+                                             f'Got: "{line}"')
+                        t = txyz[-1][0] + dt
+                        x, y, z = txyz[-1][1:]
+                        newtxyz = [[t, x, y, z]]
+                    elif token[0] == "arc":
+                        if token[1] not in {"left", "right"}:
+                            raise ValueError(f'Line {linenum} of file "{envdefsfile}":\n'\
+                                             'Expected "left/right" for ARC direction.'\
+                                             f' Got: "{line}"')
+                        if len(txyz) < 2:
+                            # Need to know direction of motion to known what is left or right.
+                            raise ValueError(f'Line {linenum} of file "{envdefsfile}":\n'\
+                                             'Can use ARC only after object has moved.'\
+                                             f': "{line}"')
+                        turnleft = True if token[1] == "left" else False
+                        try:
+                            rad, deg, spd = [float(v) for v in token[2:5]]
+                        except:
+                            raise ValueError(f'Line {linenum} of file "{envdefsfile}":\n'\
+                                             f'Expected: ARC dir rad deg speed\n' \
+                                             f'Got: "{line}"')
+                        if rad <= 0 or deg <= 0 or spd <= 0:
+                            raise ValueError(f'Line {linenum} of file "{envdefsfile}":\n'\
+                                             f'ARC parameters must be > 0: "{line}"')
+                        newtxyz = arc_points(txyz, turnleft, rad, deg, spd)
+                    else:
+                        raise ValueError(f'Line {linenum} of file "{envdefsfile}":\n'\
+                                         'Expected object movement command.'\
+                                         f' Got: "{line}"')
+
+                    txyz.extend(newtxyz)
+
+        if objstate == 2:
+            raise ValueError(f'Line {linenum} of file "{envdefsfile}":'\
+                             f' last object def is missing "end"')
+
+        print(f'Read {objectcnt} object and {agentcnt} agent definitions from '\
+              f'"{envdefsfile}"')
 
 
     def config_sensors(self):
@@ -435,20 +661,59 @@ class MultiAgentEnv:
                 self.sim.inc_time(self.dtime)
 
 
+def arc_points(txyz:list, turnleft:bool, rad:float, deg:float, spd:float):
+    """
+    Get points around an arc.
+    """
+    # Get two most recent distinct points on trajectory.
+    cur = np.array(txyz[-1][1:3])
+    idx = -1
+    for k in range(len(txyz)-1,-1,-1):
+        if np.any(txyz[k][1:3] != cur):
+            idx = k
+            break
+    if idx < 0:
+        raise ValueError('arc_points: no object motion found')
+    prev = np.array(txyz[idx][1:3])
+
+    v = cur - prev                  # 2D vector pointing in direction of motion
+    dv = np.array([v[1], -v[0]])    # perpindicular vector
+    dv = rad*dv/np.linalg.norm(dv)  # normalize to length `rad`
+    if turnleft:
+        origin = cur - dv           # center of rotation
+        rdir = 1                    # rotation direction: counter-clockwise
+    else:
+        origin = cur + dv           # center of rotation
+        rdir = -1                   # rotation direction: clockwise
+
+    dist = 2*np.pi*rad*deg/360      # distance object will travel along arc
+    npts = np.ceil(deg/10).astype(int) # one control point every 5° along arc
+    npts = max(1, npts)
+    dt = dist/(npts*spd)            # time between control points
+
+    # Rotate the current point arond the origin `npts` times.
+    newtxyz = []
+    dtheta = rdir*np.deg2rad(deg/npts)
+    angle = 0
+    t = txyz[-1][0]
+    for k in range(npts):
+        t += dt
+        angle += dtheta
+        R = np.array([[np.cos(angle), -np.sin(angle)],
+                      [np.sin(angle),  np.cos(angle)]])
+        p = np.round(R @ (cur.T - origin.T) + origin.T, 2)
+        newtxyz.append([t, p[0], p[1], 0])
+
+    return newtxyz
+
+
 if __name__ == '__main__':
 
     mae = MultiAgentEnv(imdet=True)
 
-    # Define the position, orientation, and sensors of each agent. Each row is
-    #     [xpos, ypos, xfwd, yfwd, hascam, hasmic, initzoom, panrange].
-    agentdef = [[-24, -12, -1, 0, 1, 1, 0.5, 180],
-                [-15, 10, 1, 0, 1, 1, 0.5, 180],
-                [63, -10, -1, 0, 1, 1, 0.5, 180],
-                [-35, -61, 0, 1, 1, 1, 0.5, 180]]
-
     # Create the multiagent environment.
-    mae.create(randseed=1234, envradius=100, agentdef=agentdef, showmap=True,
-               pathsfile='obj_paths.txt', outfolder='./outputs')
+    mae.create(randseed=3, envradius=400, showmap=True,
+               envdefsfile='envdefs.txt', outfolder='./outputs')
 
     # Run the simulation.
     mae.run(sim_run_time=60, cycle_times=(1,5), audio_thresh=1500,
