@@ -364,7 +364,7 @@ class MultiAgentEnv:
                     if txyz == []:
                         raise ValueError(f'Line {linenum} of file "{pathsfile}": '\
                                          'Missing object time and position data')
-                    print('\nNew object:\n', np.array(txyz))
+                    # print('\nNew object:\n', np.array(txyz))
                     self.obj_defs.append([tags, txyz])
                     objstate = 0
                     objectcnt += 1
